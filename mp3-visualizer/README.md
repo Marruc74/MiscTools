@@ -17,11 +17,16 @@ Or, since the repo is public, serve it straight from GitHub Pages once Pages is 
 
 ## Visualizer styles
 
-- **Frequency bars** — classic spectrum bars
+- **Neon bars** — glowing spectrum bars with a fading reflection
 - **Mirror bars** — bars mirrored around the center line
-- **Radial spectrum** — bars radiating from a pulsing core
-- **Waveform** — time-domain oscilloscope line
-- **Pulse rings** — concentric rings that expand with the bass
+- **Spectrum mountains** — smooth filled spectrum with a glowing crest and reflection
+- **Radial spectrum** — symmetric bars radiating from a slowly rotating, pulsing core
+- **Liquid blob** — a smooth bass-reactive blob that warps with the frequencies
+- **Aurora ribbons** — layered glowing waveforms with motion trails
+- **Galaxy burst** — a particle system that erupts on the beat, with trails
+- **Bloom rings** — concentric glowing rings that expand with the bass
+
+A **Glow / bloom** toggle adds shadow-based bloom to every style (prettier, but heavier — turn it off if recording stutters).
 
 ## How it works
 
