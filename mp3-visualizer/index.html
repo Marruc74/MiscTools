@@ -172,6 +172,7 @@
         <option value="kaleido">Kaleidoscope</option>
         <option value="dna">DNA helix</option>
         <option value="spiral">Spiral</option>
+        <option value="enchanted">Enchanted ✨</option>
       </select>
     </div>
 
@@ -272,7 +273,7 @@
   const bgBtn = $("bgBtn"), bgFile = $("bgFile"), bgList = $("bgList"), bgHint = $("bgHint");
   const placeField = $("placeField"), placeSel = $("place");
   const titleInput = $("title"), titlePosSel = $("titlePos");
-  const STYLES = ["bars", "mirror", "spectrum", "circle", "blob", "wave", "galaxy", "rings", "led", "kaleido", "dna", "spiral"];
+  const STYLES = ["bars", "mirror", "spectrum", "circle", "blob", "wave", "galaxy", "rings", "led", "kaleido", "dna", "spiral", "enchanted"];
   let bgImages = []; // [{ img, name, url, time }] — timed background slideshow
   const recordBtn = $("record"), previewBtn = $("preview"), stopBtn = $("stop");
   const badge = $("badge"), badgeText = $("badgeText");
@@ -286,7 +287,7 @@
 
   let rafId = null, startTime = 0, playing = false, recording = false;
   let recorder = null, chunks = [];
-  let firstFrame = true, rot = 0, ringPhase = 0, particles = [], shuffleNextAt = 0, ledPeaks = [];
+  let firstFrame = true, rot = 0, ringPhase = 0, particles = [], shuffleNextAt = 0, ledPeaks = [], sparkles = [];
 
   // Switch to a random (different) style and schedule the next switch ~10s out.
   function scheduleShuffle(elapsed) { shuffleNextAt = elapsed + 8 + Math.random() * 5; }
@@ -297,7 +298,7 @@
     let ti; const cur = THEMES.indexOf(theme);
     do { ti = Math.floor(Math.random() * THEMES.length); } while (ti === cur);
     setTheme(ti);
-    firstFrame = true; particles = []; // clean slate for trail/particle styles
+    firstFrame = true; particles = []; sparkles = []; // clean slate for trail/particle styles
   }
 
   // ---- Color helpers --------------------------------------------------------
@@ -398,7 +399,7 @@
     if (!audioBuffer) return;
     if (audioCtx.state === "suspended") audioCtx.resume();
     buildGraph(forRecording);
-    firstFrame = true; particles = []; rot = 0; ringPhase = 0; ledPeaks = [];
+    firstFrame = true; particles = []; sparkles = []; rot = 0; ringPhase = 0; ledPeaks = [];
     if (shuffleChk.checked) scheduleShuffle(0);
     sourceNode.onended = () => { if (playing) finish(); };
     startTime = audioCtx.currentTime;
@@ -498,7 +499,7 @@
   }
 
   // Styles that paint over a fading frame (motion trails) instead of a fresh bg
-  const TRAIL = { wave: 0.14, galaxy: 0.16, rings: 0.18, blob: 0.20, kaleido: 0.18, spiral: 0.16 };
+  const TRAIL = { wave: 0.14, galaxy: 0.16, rings: 0.18, blob: 0.20, kaleido: 0.18, spiral: 0.16, enchanted: 0.12 };
 
   // Render one visualizer frame into the current draw target (ctx / DW / DH).
   function renderStyle(style) {
@@ -519,6 +520,7 @@
       case "kaleido":   return renderKaleido(W, H);
       case "dna":       return renderDna(W, H);
       case "spiral":    return renderSpiral(W, H);
+      case "enchanted": return renderEnchanted(W, H);
     }
   }
 
@@ -890,6 +892,93 @@
       ctx.beginPath(); ctx.arc(cx + Math.cos(ang)*r, cy + Math.sin(ang)*r, 1 + v * 9, 0, Math.PI*2); ctx.fill();
     }
     ctx.globalAlpha = 1; clearGlow();
+  }
+
+  function drawSparkle(x, y, r, col, alpha) {
+    ctx.save(); ctx.translate(x, y); ctx.globalAlpha = alpha;
+    ctx.fillStyle = col; setGlow(col, 10);
+    ctx.beginPath();
+    const inner = r * 0.26;
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * Math.PI * 2, rr = (i % 2) ? inner : r;
+      const px = Math.cos(a) * rr, py = Math.sin(a) * rr;
+      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    }
+    ctx.closePath(); ctx.fill();
+    clearGlow(); ctx.restore();
+  }
+
+  function renderEnchanted(W, H) {
+    const cx = W/2, cy = H * 0.52;
+    const bass = bandEnergy(0, 12), mid = bandEnergy(12, 60), treble = bandEnergy(60, 140);
+    rot += 0.004 + mid * 0.03;
+
+    // rising magical motes (reuse the shared particle pool)
+    const spawn = 1 + Math.floor(mid * 10);
+    for (let i = 0; i < spawn && particles.length < 480; i++) {
+      particles.push({
+        x: Math.random() * W, y: H + 10,
+        vy: -(0.5 + Math.random() * 1.2 + bass * 2.5),
+        sway: Math.random() * Math.PI * 2, swaySp: 0.02 + Math.random() * 0.03, amp: 6 + Math.random() * 18,
+        life: 1, decay: 0.004 + Math.random() * 0.006, t: Math.random(), size: 1.5 + Math.random() * 3,
+      });
+    }
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.y += p.vy; p.sway += p.swaySp; p.life -= p.decay;
+      if (p.life <= 0 || p.y < -20) { particles.splice(i, 1); continue; }
+      const x = p.x + Math.sin(p.sway) * p.amp;
+      const flick = 0.55 + 0.45 * Math.sin(p.sway * 3);
+      const col = mix(theme.grad[0], theme.grad[1], p.t);
+      ctx.globalAlpha = Math.max(0, p.life) * flick;
+      ctx.fillStyle = col; setGlow(col, 12);
+      ctx.beginPath(); ctx.arc(x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1; clearGlow();
+
+    // arcane rune circle
+    const R = Math.min(W, H) * 0.16 * (1 + bass * 0.35);
+    ctx.save(); ctx.translate(cx, cy); ctx.lineCap = "round";
+    ctx.rotate(rot);
+    const ticks = 36;
+    ctx.strokeStyle = rgba(theme.grad[1], 0.85); setGlow(theme.grad[1], 14);
+    ctx.lineWidth = Math.max(1.5, Math.min(W, H) / 500);
+    for (let i = 0; i < ticks; i++) {
+      const a = i / ticks * Math.PI * 2;
+      const v = freqData[Math.floor(i / ticks * 100)] / 255;
+      const r1 = R * 1.15, r2 = r1 + 4 + v * Math.min(W, H) * 0.06;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1);
+      ctx.lineTo(Math.cos(a) * r2, Math.sin(a) * r2);
+      ctx.stroke();
+    }
+    // counter-rotating glyph rings
+    ctx.rotate(-rot * 2);
+    for (let k = 0; k < 2; k++) {
+      ctx.strokeStyle = rgba(k ? theme.grad[0] : theme.grad[1], 0.7);
+      ctx.lineWidth = Math.max(1.5, Math.min(W, H) / 430);
+      ctx.beginPath(); ctx.arc(0, 0, R * (0.82 + k * 0.18), 0, Math.PI * 2); ctx.stroke();
+    }
+    // glowing core orb
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.85);
+    g.addColorStop(0, "rgba(255,255,255,0.95)");
+    g.addColorStop(0.4, theme.grad[0]);
+    g.addColorStop(1, rgba(theme.grad[1], 0));
+    setGlow(theme.grad[0], 40); ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, R * (0.55 + bass * 0.3), 0, Math.PI * 2); ctx.fill();
+    clearGlow(); ctx.restore();
+
+    // twinkling sparkles, more frequent on the highs
+    if (sparkles.length < 36 && Math.random() < 0.25 + treble) {
+      sparkles.push({ x: Math.random() * W, y: Math.random() * H, life: 1, sz: 4 + Math.random() * 9, t: Math.random() });
+    }
+    for (let i = sparkles.length - 1; i >= 0; i--) {
+      const s = sparkles[i]; s.life -= 0.02;
+      if (s.life <= 0) { sparkles.splice(i, 1); continue; }
+      const a = Math.sin(s.life * Math.PI); // ease in/out
+      drawSparkle(s.x, s.y, s.sz * a, mix(theme.grad[0], theme.grad[1], s.t), a);
+    }
+    ctx.globalAlpha = 1;
   }
 
   function roundRect(x, y, w, h, r) {

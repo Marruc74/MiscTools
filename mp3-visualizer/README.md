@@ -41,6 +41,7 @@ When any images are present, the visualizer renders into a smaller rounded, glow
 - **Kaleidoscope** — radial spectrum mirrored into 8 rotating wedges, with trails
 - **DNA helix** — two glowing strands with rungs, twisting and pulsing with the beat
 - **Spiral** — dots on a rotating spiral, sized by frequency, with trails
+- **Enchanted ✨** — a fantasy/magic scene: a glowing arcane rune-circle (counter-rotating rings with frequency-reactive ticks and a bright core orb), rising magical motes that drift and flicker, and star sparkles that twinkle on the highs
 
 A **Glow / bloom** toggle adds shadow-based bloom to every style (prettier, but heavier — turn it off if recording stutters).
 
