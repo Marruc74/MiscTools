@@ -771,7 +771,7 @@
   }
 
   function renderKaleido(W, H) {
-    const cx = W/2, cy = H/2; rot += 0.003;
+    const cx = W/2, cy = H/2; rot += 0.002 + bandEnergy(0, 60) * 0.06; // spin tracks the music
     const seg = 8, R = Math.min(W, H) * 0.5;
     const bars = 40, step = Math.floor((freqData.length * 0.5) / bars);
     ctx.save(); ctx.translate(cx, cy); ctx.lineCap = "round";
@@ -798,11 +798,15 @@
   }
 
   function renderDna(W, H) {
-    rot += 0.05;
+    const bass = bandEnergy(0, 16), mids = bandEnergy(16, 80);
+    rot += 0.012 + bandEnergy(0, 80) * 0.16;     // twist speed tracks the music
     const mid = H/2, turns = 3, N = 64;
-    const A = H * 0.22 * (0.6 + bandEnergy(0, 40) * 0.9);
+    // overall width driven by bass; each segment further scaled by its own frequency band
+    const baseA = H * 0.06 + H * 0.32 * Math.pow(bass, 0.7);
     const p1 = [], p2 = [];
     for (let i = 0; i <= N; i++) {
+      const fb = freqData[Math.floor(i / N * 120)] / 255;
+      const A = baseA * (0.5 + fb * 0.9);
       const x = i / N * W, ph = i / N * Math.PI * 2 * turns + rot;
       p1.push([x, mid + Math.sin(ph) * A]);
       p2.push([x, mid + Math.sin(ph + Math.PI) * A]);
@@ -810,7 +814,7 @@
     for (let i = 0; i <= N; i += 2) {
       const t = Math.abs(Math.sin(i / N * Math.PI * 2 * turns + rot));
       const col = mix(theme.grad[0], theme.grad[1], i / N);
-      ctx.strokeStyle = rgba(col, 0.35 + 0.5 * t); ctx.lineWidth = Math.max(1.5, H/380); setGlow(col, 8);
+      ctx.strokeStyle = rgba(col, 0.25 + 0.7 * t * (0.4 + mids)); ctx.lineWidth = Math.max(1.5, H/380); setGlow(col, 8);
       ctx.beginPath(); ctx.moveTo(p1[i][0], p1[i][1]); ctx.lineTo(p2[i][0], p2[i][1]); ctx.stroke();
     }
     [p1, p2].forEach((pts, si) => {
@@ -818,7 +822,7 @@
       ctx.fillStyle = col; setGlow(col, 14);
       for (let i = 0; i < pts.length; i++) {
         const depth = (Math.sin(i / N * Math.PI * 2 * turns + rot + (si ? Math.PI : 0)) + 1) / 2;
-        ctx.globalAlpha = 0.35 + depth * 0.65;
+        ctx.globalAlpha = 0.3 + depth * 0.7;
         ctx.beginPath(); ctx.arc(pts[i][0], pts[i][1], 2 + depth * 5, 0, Math.PI*2); ctx.fill();
       }
     });
@@ -826,17 +830,19 @@
   }
 
   function renderSpiral(W, H) {
-    const cx = W/2, cy = H/2; rot += 0.02;
-    const N = 150, maxR = Math.min(W, H) * 0.46;
+    const cx = W/2, cy = H/2;
+    const bass = bandEnergy(0, 16);
+    rot += 0.004 + bandEnergy(0, 90) * 0.13;          // spin speed tracks the music
+    const N = 150, maxR = Math.min(W, H) * 0.46 * (0.78 + bass * 0.5); // whole spiral breathes with bass
     for (let i = 0; i < N; i++) {
       const frac = i / N;
       const v = freqData[Math.floor(frac * 120)] / 255;
       const ang = frac * Math.PI * 2 * 5 + rot;
-      const r = frac * maxR;
+      const r = frac * maxR * (1 + v * 0.2);          // local bulge on loud bands
       const col = mix(theme.grad[0], theme.grad[1], frac);
       ctx.fillStyle = col; setGlow(col, 10);
-      ctx.globalAlpha = 0.45 + v * 0.55;
-      ctx.beginPath(); ctx.arc(cx + Math.cos(ang)*r, cy + Math.sin(ang)*r, 1.5 + v * 7, 0, Math.PI*2); ctx.fill();
+      ctx.globalAlpha = 0.28 + v * 0.72;
+      ctx.beginPath(); ctx.arc(cx + Math.cos(ang)*r, cy + Math.sin(ang)*r, 1 + v * 9, 0, Math.PI*2); ctx.fill();
     }
     ctx.globalAlpha = 1; clearGlow();
   }
