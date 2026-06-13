@@ -160,19 +160,32 @@
     <div class="field">
       <label for="style">Visualizer style</label>
       <select id="style">
-        <option value="bars">Neon bars</option>
-        <option value="mirror">Mirror bars</option>
-        <option value="spectrum">Spectrum mountains</option>
-        <option value="circle">Radial spectrum</option>
-        <option value="blob">Liquid blob</option>
-        <option value="wave">Aurora ribbons</option>
-        <option value="galaxy">Galaxy burst</option>
-        <option value="rings">Bloom rings</option>
-        <option value="led">LED meter</option>
-        <option value="kaleido">Kaleidoscope</option>
-        <option value="dna">DNA helix</option>
-        <option value="spiral">Spiral</option>
-        <option value="enchanted">Enchanted ✨</option>
+        <optgroup label="Standard">
+          <option value="bars">Neon bars</option>
+          <option value="mirror">Mirror bars</option>
+          <option value="spectrum">Spectrum mountains</option>
+          <option value="circle">Radial spectrum</option>
+          <option value="blob">Liquid blob</option>
+          <option value="wave">Aurora ribbons</option>
+          <option value="galaxy">Galaxy burst</option>
+          <option value="rings">Bloom rings</option>
+          <option value="led">LED meter</option>
+          <option value="kaleido">Kaleidoscope</option>
+          <option value="dna">DNA helix</option>
+          <option value="spiral">Spiral</option>
+        </optgroup>
+        <optgroup label="Fantasy ✨">
+          <option value="enchanted">Enchanted</option>
+          <option value="fairy">Fairy dust</option>
+          <option value="crystal">Crystal orb</option>
+          <option value="phoenix">Phoenix flames</option>
+          <option value="veil">Aurora veil</option>
+          <option value="summon">Summoning circle</option>
+          <option value="fbars">Enchanted bars</option>
+          <option value="fmirror">Enchanted mirror</option>
+          <option value="fspectrum">Mystic peaks</option>
+          <option value="fradial">Arcane bloom</option>
+        </optgroup>
       </select>
     </div>
 
@@ -189,6 +202,15 @@
         <option value="1080x1080">Square (1080×1080)</option>
         <option value="1080x1920">Vertical 9:16 (1080×1920)</option>
       </select>
+    </div>
+
+    <div class="field">
+      <label>Clip to a section (optional)</label>
+      <div class="row">
+        <div class="field"><label for="clipStart">Start</label><input type="text" id="clipStart" placeholder="0:00" /></div>
+        <div class="field"><label for="clipEnd">End</label><input type="text" id="clipEnd" placeholder="end" /></div>
+      </div>
+      <span class="hint">Renders &amp; records only this section — for shorts/reels. Use <b>0:30</b> or <b>30</b>. Blank = whole track.</span>
     </div>
 
     <div class="field">
@@ -224,6 +246,14 @@
 
     <label class="toggle"><input type="checkbox" id="glow" checked /> Glow / bloom (prettier, heavier)</label>
     <label class="toggle"><input type="checkbox" id="shuffle" /> Shuffle styles every ~10s</label>
+    <div class="field" id="shuffleScopeField" hidden>
+      <label for="shuffleScope">Randomize from</label>
+      <select id="shuffleScope">
+        <option value="all">All styles</option>
+        <option value="fantasy">Fantasy only ✨</option>
+        <option value="standard">Non-fantasy only</option>
+      </select>
+    </div>
 
     <button class="primary" id="record" disabled>● Record video</button>
     <p class="hint">Recording runs in real time and plays the song aloud. The video downloads as <b>.webm</b> when it finishes. Use 720p if recording stutters.</p>
@@ -270,10 +300,21 @@
   let DW = canvas.width, DH = canvas.height; // current draw-target dimensions
   const fileInput = $("file"), drop = $("drop"), fileName = $("fileName");
   const styleSel = $("style"), resSel = $("res"), glowChk = $("glow"), shuffleChk = $("shuffle");
+  const shuffleScopeField = $("shuffleScopeField"), shuffleScopeSel = $("shuffleScope");
   const bgBtn = $("bgBtn"), bgFile = $("bgFile"), bgList = $("bgList"), bgHint = $("bgHint");
   const placeField = $("placeField"), placeSel = $("place");
   const titleInput = $("title"), titlePosSel = $("titlePos");
-  const STYLES = ["bars", "mirror", "spectrum", "circle", "blob", "wave", "galaxy", "rings", "led", "kaleido", "dna", "spiral", "enchanted"];
+  const clipStartIn = $("clipStart"), clipEndIn = $("clipEnd");
+  const STYLES = ["bars", "mirror", "spectrum", "circle", "blob", "wave", "galaxy", "rings", "led", "kaleido", "dna", "spiral",
+                  "enchanted", "fairy", "crystal", "phoenix", "veil", "summon", "fbars", "fmirror", "fspectrum", "fradial"];
+  // Styles with a fantasy/magical look. The "Randomize from" selector filters on this.
+  const FANTASY = new Set(["enchanted", "fairy", "crystal", "phoenix", "veil", "summon", "fbars", "fmirror", "fspectrum", "fradial"]);
+  function shufflePool() {
+    const scope = shuffleScopeSel.value;
+    if (scope === "fantasy")  return STYLES.filter(s => FANTASY.has(s));
+    if (scope === "standard") return STYLES.filter(s => !FANTASY.has(s));
+    return STYLES;
+  }
   let bgImages = []; // [{ img, name, url, time }] — timed background slideshow
   const recordBtn = $("record"), previewBtn = $("preview"), stopBtn = $("stop");
   const badge = $("badge"), badgeText = $("badgeText");
@@ -285,15 +326,16 @@
   let freqData = null, timeData = null;
   let baseName = "visualizer";
 
-  let rafId = null, startTime = 0, playing = false, recording = false;
+  let rafId = null, startTime = 0, playing = false, recording = false, clipDur = 0, outName = "visualizer";
   let recorder = null, chunks = [];
   let firstFrame = true, rot = 0, ringPhase = 0, particles = [], shuffleNextAt = 0, ledPeaks = [], sparkles = [];
 
   // Switch to a random (different) style and schedule the next switch ~10s out.
   function scheduleShuffle(elapsed) { shuffleNextAt = elapsed + 8 + Math.random() * 5; }
   function shuffleStyle() {
-    let next;
-    do { next = STYLES[Math.floor(Math.random() * STYLES.length)]; } while (next === styleSel.value);
+    const pool = shufflePool();
+    let next = pool[0] || styleSel.value;
+    if (pool.length > 1) { do { next = pool[Math.floor(Math.random() * pool.length)]; } while (next === styleSel.value); }
     styleSel.value = next;
     let ti; const cur = THEMES.indexOf(theme);
     do { ti = Math.floor(Math.random() * THEMES.length); } while (ti === cur);
@@ -362,6 +404,7 @@
       const arr = await file.arrayBuffer();
       audioBuffer = await audioCtx.decodeAudioData(arr);
       if (!titleInput.value.trim()) titleInput.value = baseName;
+      clipStartIn.value = ""; clipEndIn.value = ""; // reset trim to the whole track
       fileName.textContent = file.name + "  ·  " + fmt(audioBuffer.duration);
       recordBtn.disabled = false; previewBtn.disabled = false;
       outputEl.textContent = "";
@@ -400,10 +443,15 @@
     if (audioCtx.state === "suspended") audioCtx.resume();
     buildGraph(forRecording);
     firstFrame = true; particles = []; sparkles = []; rot = 0; ringPhase = 0; ledPeaks = [];
-    if (shuffleChk.checked) scheduleShuffle(0);
+    if (shuffleChk.checked) {
+      if (!shufflePool().includes(styleSel.value)) shuffleStyle(); // begin within the chosen scope
+      scheduleShuffle(0);
+    }
     sourceNode.onended = () => { if (playing) finish(); };
+    const clip = clipBounds();
+    clipDur = clip.dur;
     startTime = audioCtx.currentTime;
-    sourceNode.start(0);
+    sourceNode.start(0, clip.start, clip.dur); // play only the chosen section
     playing = true;
     previewBtn.disabled = true; recordBtn.disabled = true; stopBtn.disabled = false;
     loop();
@@ -428,6 +476,10 @@
   recordBtn.addEventListener("click", () => {
     if (!audioBuffer) return;
     outputEl.textContent = "";
+    // tag the file with the clip range when trimmed, so multiple shorts don't collide
+    const clip = clipBounds();
+    const full = clip.start <= 0.001 && clip.dur >= audioBuffer.duration - 0.05;
+    outName = baseName + (full ? "" : `_${Math.round(clip.start)}-${Math.round(clip.end)}s`);
     start(true);
 
     const fps = 60;
@@ -445,11 +497,11 @@
       const blob = new Blob(chunks, { type: chunks[0] ? chunks[0].type : "video/webm" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url; a.download = baseName + ".webm"; a.textContent = "⤓ Download " + baseName + ".webm";
+      a.href = url; a.download = outName + ".webm"; a.textContent = "⤓ Download " + outName + ".webm";
       a.className = "dl";
       outputEl.textContent = ""; outputEl.appendChild(a);
       const tmp = document.createElement("a");
-      tmp.href = url; tmp.download = baseName + ".webm"; tmp.click();
+      tmp.href = url; tmp.download = outName + ".webm"; tmp.click();
     };
     recording = true;
     recorder.start();
@@ -467,7 +519,7 @@
     rafId = requestAnimationFrame(loop);
     const elapsed = audioCtx.currentTime - startTime;
     updateTime(elapsed);
-    if (audioBuffer) progressEl.style.width = Math.min(100, (elapsed / audioBuffer.duration) * 100) + "%";
+    if (audioBuffer && clipDur > 0) progressEl.style.width = Math.min(100, (elapsed / clipDur) * 100) + "%";
 
     if (shuffleChk.checked && elapsed >= shuffleNextAt) { shuffleStyle(); scheduleShuffle(elapsed); }
 
@@ -499,7 +551,8 @@
   }
 
   // Styles that paint over a fading frame (motion trails) instead of a fresh bg
-  const TRAIL = { wave: 0.14, galaxy: 0.16, rings: 0.18, blob: 0.20, kaleido: 0.18, spiral: 0.16, enchanted: 0.12 };
+  const TRAIL = { wave: 0.14, galaxy: 0.16, rings: 0.18, blob: 0.20, kaleido: 0.18, spiral: 0.16, enchanted: 0.12,
+                  fairy: 0.13, crystal: 0.20, phoenix: 0.16, veil: 0.12, summon: 0.14 };
 
   // Render one visualizer frame into the current draw target (ctx / DW / DH).
   function renderStyle(style) {
@@ -521,6 +574,15 @@
       case "dna":       return renderDna(W, H);
       case "spiral":    return renderSpiral(W, H);
       case "enchanted": return renderEnchanted(W, H);
+      case "fairy":     return renderFairy(W, H);
+      case "crystal":   return renderCrystal(W, H);
+      case "phoenix":   return renderPhoenix(W, H);
+      case "veil":      return renderVeil(W, H);
+      case "summon":    return renderSummon(W, H);
+      case "fbars":     return renderFairyBars(W, H, false);
+      case "fmirror":   return renderFairyBars(W, H, true);
+      case "fspectrum": return renderFairySpectrum(W, H);
+      case "fradial":   return renderFairyRadial(W, H);
     }
   }
 
@@ -981,6 +1043,346 @@
     ctx.globalAlpha = 1;
   }
 
+  // ---- Fantasy visualizers --------------------------------------------------
+  // Fairy dust: a swirling, twinkling cloud of glowing motes orbiting a soft core.
+  function renderFairy(W, H) {
+    const cx = W/2, cy = H/2;
+    const bass = bandEnergy(0, 8), mid = bandEnergy(12, 70), treble = bandEnergy(70, 140);
+    rot += 0.004 + mid * 0.02;
+    const maxR = Math.min(W, H) * 0.46;
+    const spawn = 1 + Math.floor(mid * 11);
+    for (let i = 0; i < spawn && particles.length < 520; i++) {
+      particles.push({
+        ang: Math.random() * Math.PI * 2,
+        rad: Math.min(W, H) * (0.04 + Math.random() * 0.12),
+        spin: (0.004 + Math.random() * 0.012) * (Math.random() < 0.5 ? 1 : -1),
+        drift: 0.3 + Math.random() * 0.9 + bass * 1.6,
+        life: 1, decay: 0.004 + Math.random() * 0.006,
+        t: Math.random(), size: 1 + Math.random() * 2.5, star: Math.random() < 0.16,
+      });
+    }
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.ang += p.spin; p.rad += p.drift; p.life -= p.decay;
+      if (p.life <= 0 || p.rad > maxR) { particles.splice(i, 1); continue; }
+      const x = cx + Math.cos(p.ang + rot) * p.rad, y = cy + Math.sin(p.ang + rot) * p.rad;
+      const flick = 0.5 + 0.5 * Math.sin((p.ang + p.life) * 9);
+      const col = mix(theme.grad[0], theme.grad[1], p.t);
+      const a = Math.max(0, p.life) * flick;
+      if (p.star) { drawSparkle(x, y, p.size * 2.2, col, a); }
+      else {
+        ctx.globalAlpha = a; ctx.fillStyle = col; setGlow(col, 12);
+        ctx.beginPath(); ctx.arc(x, y, p.size + treble * 2, 0, Math.PI*2); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1; clearGlow();
+    // soft glowing core
+    const col = mix(theme.grad[0], theme.grad[1], 0.5);
+    const cr = Math.min(W, H) * 0.12 * (1 + bass * 0.6);
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, cr * 1.6);
+    g.addColorStop(0, "rgba(255,255,255,0.9)");
+    g.addColorStop(0.5, rgba(col, 0.6));
+    g.addColorStop(1, rgba(col, 0));
+    setGlow(col, 30); ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI*2); ctx.fill();
+    clearGlow();
+  }
+
+  // Crystal orb: a slowly rotating faceted gem whose facets stretch with the spectrum.
+  function renderCrystal(W, H) {
+    const cx = W/2, cy = H/2; rot += 0.003;
+    const bass = bandEnergy(0, 10), treble = bandEnergy(70, 140);
+    const baseR = Math.min(W, H) * 0.17 * (1 + bass * 0.5);
+    const N = 12, pts = [];
+    for (let i = 0; i < N; i++) {
+      const v = freqData[Math.floor(i / N * 110)] / 255;
+      const ang = i / N * Math.PI * 2 + rot;
+      const r = baseR * (0.8 + Math.pow(v, 1.2) * 0.9);
+      pts.push([cx + Math.cos(ang)*r, cy + Math.sin(ang)*r]);
+    }
+    const trace = () => pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+    // gem body
+    ctx.beginPath(); trace(); ctx.closePath();
+    const g = ctx.createRadialGradient(cx - baseR*0.3, cy - baseR*0.3, baseR*0.1, cx, cy, baseR*1.6);
+    g.addColorStop(0, rgba(theme.grad[0], 0.95));
+    g.addColorStop(0.6, rgba(theme.grad[1], 0.8));
+    g.addColorStop(1, rgba(theme.grad[1], 0.12));
+    setGlow(theme.grad[1], 40); ctx.fillStyle = g; ctx.fill(); clearGlow();
+    // facet lines from center to each vertex
+    ctx.strokeStyle = "rgba(255,255,255,0.32)"; ctx.lineWidth = Math.max(1, Math.min(W,H)/600);
+    pts.forEach((p) => { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(p[0], p[1]); ctx.stroke(); });
+    // glowing outline
+    ctx.beginPath(); trace(); ctx.closePath();
+    ctx.strokeStyle = rgba(theme.grad[0], 0.9); ctx.lineWidth = Math.max(1.5, Math.min(W,H)/360);
+    setGlow(theme.grad[0], 18); ctx.stroke(); clearGlow();
+    // central glint
+    ctx.globalAlpha = 0.55 + treble * 0.45; ctx.fillStyle = "#fff"; setGlow("#ffffff", 20);
+    ctx.beginPath(); ctx.arc(cx - baseR*0.18, cy - baseR*0.18, baseR*0.14, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1; clearGlow();
+  }
+
+  // Phoenix flames: a rising plume of fiery motes that flares with the beat.
+  function renderPhoenix(W, H) {
+    const baseY = H * 0.92, cx = W/2;
+    const bass = bandEnergy(0, 10), mid = bandEnergy(10, 70);
+    const spawn = 3 + Math.floor((bass + mid) * 18);
+    for (let i = 0; i < spawn && particles.length < 620; i++) {
+      const spread = (Math.random() - 0.5) * W * (0.1 + mid * 0.55);
+      particles.push({
+        x: cx + spread, y: baseY,
+        vx: spread * 0.012 + (Math.random() - 0.5) * 0.6,
+        vy: -(2 + Math.random() * 3 + bass * 5),
+        life: 1, decay: 0.012 + Math.random() * 0.01,
+        t: Math.random(), size: 2 + Math.random() * 4,
+      });
+    }
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx; p.y += p.vy; p.vy *= 0.985; p.vx *= 0.99; p.life -= p.decay;
+      if (p.life <= 0) { particles.splice(i, 1); continue; }
+      const col = mix(theme.grad[0], theme.grad[1], 1 - p.life); // hot core → cooler tip
+      ctx.globalAlpha = Math.max(0, p.life) * 0.9;
+      ctx.fillStyle = p.life > 0.7 ? "#fff" : col; setGlow(col, 14);
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (0.4 + p.life), 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1; clearGlow();
+    // glowing ember base
+    const col = mix(theme.grad[0], theme.grad[1], 0.3);
+    setGlow(col, 50); ctx.fillStyle = col; ctx.globalAlpha = 0.8;
+    ctx.beginPath(); ctx.ellipse(cx, baseY, W*0.06 + bass*W*0.08, H*0.02 + bass*22, 0, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1; clearGlow();
+  }
+
+  // Aurora veil: hanging shimmering curtains of light that sway with the spectrum.
+  function renderVeil(W, H) {
+    rot += 0.01;
+    const bands = 5, treble = bandEnergy(60, 140), steps = 40;
+    for (let b = 0; b < bands; b++) {
+      const baseX = (b + 0.5) / bands * W;
+      const bandE = bandEnergy(b * 12, b * 12 + 24);
+      const reach = H * (0.5 + bandE * 0.5);
+      const col = mix(theme.grad[0], theme.grad[1], b / (bands - 1));
+      const sway = W * 0.06 * (1 + bandE * 2), wWidth = W / bands * (0.5 + bandE);
+      const left = [], right = [];
+      for (let i = 0; i <= steps; i++) {
+        const y = i / steps * reach;
+        const cxx = baseX + Math.sin(y * 0.012 + rot * 2 + b) * sway;
+        const halfW = wWidth * 0.5 * (0.3 + (1 - i / steps));
+        left.push([cxx - halfW, y]); right.push([cxx + halfW, y]);
+      }
+      ctx.beginPath();
+      ctx.moveTo(left[0][0], left[0][1]);
+      for (let i = 1; i < left.length; i++) ctx.lineTo(left[i][0], left[i][1]);
+      for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i][0], right[i][1]);
+      ctx.closePath();
+      const g = ctx.createLinearGradient(0, 0, 0, reach);
+      g.addColorStop(0, rgba(col, 0.05));
+      g.addColorStop(0.4, rgba(col, 0.45 + bandE * 0.4));
+      g.addColorStop(1, rgba(col, 0));
+      setGlow(col, 24); ctx.fillStyle = g; ctx.fill();
+    }
+    clearGlow();
+    // star twinkles in the upper sky
+    if (sparkles.length < 30 && Math.random() < 0.2 + treble) {
+      sparkles.push({ x: Math.random()*W, y: Math.random()*H*0.5, life: 1, sz: 3 + Math.random()*6, t: Math.random() });
+    }
+    for (let i = sparkles.length - 1; i >= 0; i--) {
+      const s = sparkles[i]; s.life -= 0.02;
+      if (s.life <= 0) { sparkles.splice(i, 1); continue; }
+      const a = Math.sin(s.life * Math.PI);
+      drawSparkle(s.x, s.y, s.sz * a, mix(theme.grad[0], theme.grad[1], s.t), a * 0.9);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Summoning circle: a rotating arcane ring of spectrum ticks with a counter-spinning pentagram.
+  function renderSummon(W, H) {
+    const cx = W/2, cy = H/2; rot += 0.0035 + bandEnergy(0, 60) * 0.04;
+    const bass = bandEnergy(0, 10);
+    const R = Math.min(W, H) * 0.28;
+    ctx.save(); ctx.translate(cx, cy); ctx.lineCap = "round";
+    ctx.rotate(rot);
+    // concentric rings
+    for (let k = 0; k < 2; k++) {
+      const c = k ? theme.grad[0] : theme.grad[1];
+      ctx.strokeStyle = rgba(c, 0.8); ctx.lineWidth = Math.max(1.5, Math.min(W,H)/420); setGlow(c, 14);
+      ctx.beginPath(); ctx.arc(0, 0, R * (0.62 + k * 0.42), 0, Math.PI*2); ctx.stroke();
+    }
+    // radial spectrum ticks around the main ring
+    const ticks = 64, step = Math.floor((freqData.length * 0.55) / ticks);
+    for (let i = 0; i < ticks; i++) {
+      let v = 0; for (let j = 0; j < step; j++) v += freqData[i*step + j];
+      v = (v / step) / 255;
+      const a = i / ticks * Math.PI * 2, len = Math.pow(v, 1.2) * R * 0.5;
+      const col = mix(theme.grad[0], theme.grad[1], i / ticks);
+      ctx.strokeStyle = col; setGlow(col, 10); ctx.lineWidth = Math.max(2, Math.min(W,H)/320);
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*R, Math.sin(a)*R);
+      ctx.lineTo(Math.cos(a)*(R+len), Math.sin(a)*(R+len));
+      ctx.stroke();
+    }
+    // counter-rotating pentagram
+    ctx.rotate(-rot * 3);
+    const star = 5, sr = R * 0.55 * (1 + bass * 0.2);
+    ctx.strokeStyle = rgba(theme.grad[0], 0.85); setGlow(theme.grad[0], 16);
+    ctx.lineWidth = Math.max(1.5, Math.min(W,H)/440);
+    ctx.beginPath();
+    for (let i = 0; i <= star; i++) {
+      const a = ((i * 2) % star) / star * Math.PI * 2 - Math.PI/2;
+      const x = Math.cos(a)*sr, y = Math.sin(a)*sr;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.closePath(); ctx.stroke(); clearGlow();
+    // pulsing core
+    const col = mix(theme.grad[0], theme.grad[1], 0.5);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.4);
+    g.addColorStop(0, "rgba(255,255,255,0.9)"); g.addColorStop(0.5, rgba(col, 0.6)); g.addColorStop(1, rgba(col, 0));
+    setGlow(col, 36); ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, R * (0.22 + bass * 0.3), 0, Math.PI*2); ctx.fill();
+    clearGlow(); ctx.restore();
+  }
+
+  // Enchanted bars / mirror: gem-tipped glowing columns with rising sparkle motes.
+  function renderFairyBars(W, H, mirror) {
+    const count = mirror ? 72 : 64;
+    const step = Math.floor((freqData.length * 0.7) / count);
+    const bw = W / count;
+    const baseline = mirror ? H / 2 : H * 0.82;
+    const mid = bandEnergy(12, 70);
+    for (let i = 0; i < count; i++) {
+      let v = 0; for (let j = 0; j < step; j++) v += freqData[i*step + j];
+      v = (v / step) / 255;
+      const bh = Math.pow(v, 1.4) * H * (mirror ? 0.42 : 0.66);
+      const x = i * bw + bw * 0.18, w = bw * 0.64, r = Math.min(w/2, 8);
+      const col = mix(theme.grad[0], theme.grad[1], i / count);
+      setGlow(col, 16);
+      // upward column, white-hot at the tip
+      let g = ctx.createLinearGradient(0, baseline - bh, 0, baseline);
+      g.addColorStop(0, "#fff"); g.addColorStop(0.3, col); g.addColorStop(1, rgba(col, mirror ? 0.4 : 0.25));
+      ctx.fillStyle = g; roundRect(x, baseline - bh, w, bh, r);
+      // gem orb at the crest
+      if (bh > 4) {
+        ctx.fillStyle = "#fff"; ctx.globalAlpha = 0.8 + v * 0.2;
+        ctx.beginPath(); ctx.arc(x + w/2, baseline - bh, 2 + v * bw * 0.4, 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      clearGlow();
+      // reflection / mirrored half
+      g = ctx.createLinearGradient(0, baseline, 0, baseline + bh * (mirror ? 1 : 0.6));
+      g.addColorStop(0, rgba(col, mirror ? 0.5 : 0.3)); g.addColorStop(1, rgba(col, 0.04));
+      ctx.fillStyle = g;
+      if (mirror) { setGlow(col, 10); roundRect(x, baseline, w, bh, r); clearGlow(); }
+      else ctx.fillRect(x, baseline, w, bh * 0.6);
+    }
+    // shimmering mirror line
+    if (mirror) {
+      const e = bandEnergy(0, 30);
+      const lg = ctx.createLinearGradient(0, 0, W, 0);
+      lg.addColorStop(0, rgba(theme.grad[0], 0));
+      lg.addColorStop(0.5, rgba(theme.grad[1], 0.6 + e * 0.4));
+      lg.addColorStop(1, rgba(theme.grad[0], 0));
+      ctx.fillStyle = lg; setGlow(theme.grad[1], 20);
+      ctx.fillRect(0, baseline - 1.5, W, 3); clearGlow();
+    }
+    // rising sparkle motes
+    const spawn = mirror ? (Math.random() < 0.4 ? 1 : 0) : Math.floor(mid * 4);
+    for (let i = 0; i < spawn && sparkles.length < 60; i++) {
+      sparkles.push({ x: Math.random() * W, y: mirror ? Math.random() * H : baseline - Math.random() * H * 0.1,
+        life: 1, sz: 3 + Math.random() * 6, t: Math.random(), vy: mirror ? 0 : -(0.6 + Math.random() * 1.4) });
+    }
+    for (let i = sparkles.length - 1; i >= 0; i--) {
+      const s = sparkles[i]; s.y += (s.vy || 0); s.life -= 0.014;
+      if (s.life <= 0) { sparkles.splice(i, 1); continue; }
+      const a = Math.sin(s.life * Math.PI);
+      drawSparkle(s.x, s.y, s.sz * a, mix(theme.grad[0], theme.grad[1], s.t), a * 0.8);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Mystic peaks: a glowing spectrum ridge under a moon, with fireflies above it.
+  function renderFairySpectrum(W, H) {
+    const n = 110, step = Math.floor((freqData.length * 0.7) / n);
+    const baseline = H * 0.84;
+    // moon
+    const mx = W * 0.78, my = H * 0.22, mr = Math.min(W, H) * 0.07;
+    const mg = ctx.createRadialGradient(mx, my, 0, mx, my, mr * 1.9);
+    mg.addColorStop(0, "rgba(255,255,255,0.95)");
+    mg.addColorStop(0.5, rgba(theme.grad[0], 0.5));
+    mg.addColorStop(1, rgba(theme.grad[0], 0));
+    setGlow(theme.grad[0], 30); ctx.fillStyle = mg;
+    ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI*2); ctx.fill(); clearGlow();
+    // ridge
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      let v = 0; for (let j = 0; j < step; j++) v += freqData[Math.min(freqData.length-1, i*step + j)];
+      v = (v / step) / 255;
+      pts.push([i / n * W, baseline - Math.pow(v, 1.4) * H * 0.55]);
+    }
+    const trace = () => {
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 0; i < pts.length - 1; i++) {
+        const mxp = (pts[i][0] + pts[i+1][0]) / 2, myp = (pts[i][1] + pts[i+1][1]) / 2;
+        ctx.quadraticCurveTo(pts[i][0], pts[i][1], mxp, myp);
+      }
+    };
+    ctx.beginPath(); ctx.moveTo(0, baseline); ctx.lineTo(pts[0][0], pts[0][1]); trace();
+    ctx.lineTo(W, baseline); ctx.closePath();
+    const g = ctx.createLinearGradient(0, baseline - H*0.55, 0, baseline);
+    g.addColorStop(0, rgba(theme.grad[1], 0.85)); g.addColorStop(1, rgba(theme.grad[0], 0.1));
+    ctx.fillStyle = g; ctx.fill();
+    // glowing crest
+    ctx.beginPath(); trace(); ctx.strokeStyle = "#fff"; ctx.lineWidth = Math.max(2, H/340);
+    setGlow(theme.grad[0], 22); ctx.stroke(); clearGlow();
+    // fireflies above the ridge
+    const mid = bandEnergy(12, 70);
+    if (sparkles.length < 40 && Math.random() < 0.3 + mid) {
+      sparkles.push({ x: Math.random() * W, y: Math.random() * baseline * 0.9, life: 1, sz: 2 + Math.random() * 5, t: Math.random() });
+    }
+    for (let i = sparkles.length - 1; i >= 0; i--) {
+      const s = sparkles[i]; s.life -= 0.015;
+      if (s.life <= 0) { sparkles.splice(i, 1); continue; }
+      const a = Math.sin(s.life * Math.PI);
+      drawSparkle(s.x, s.y, s.sz * a, mix(theme.grad[0], theme.grad[1], s.t), a * 0.8);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Arcane bloom: a fantasy radial spectrum drawn as a rotating flower/mandala.
+  function renderFairyRadial(W, H) {
+    const cx = W/2, cy = H/2; rot += 0.003 + bandEnergy(0, 60) * 0.03;
+    const bass = bandEnergy(0, 10);
+    const R = Math.min(W, H) * 0.16 * (1 + bass * 0.4);
+    const petals = 60, step = Math.floor((freqData.length * 0.55) / petals);
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot);
+    for (let layer = 0; layer < 2; layer++) {
+      for (let i = 0; i < petals; i++) {
+        let v = 0; for (let j = 0; j < step; j++) v += freqData[i*step + j];
+        v = (v / step) / 255;
+        const ang = i / petals * Math.PI * 2;
+        const len = Math.pow(v, 1.3) * R * (layer ? 1.4 : 2.1);
+        const col = mix(theme.grad[0], theme.grad[1], i / petals);
+        const baseX = Math.cos(ang) * R, baseY = Math.sin(ang) * R;
+        const tipX = Math.cos(ang) * (R + len), tipY = Math.sin(ang) * (R + len);
+        const perp = ang + Math.PI/2, wdt = (R + len) * 0.06 + 2;
+        ctx.beginPath();
+        ctx.moveTo(baseX, baseY);
+        ctx.quadraticCurveTo(baseX + Math.cos(perp)*wdt, baseY + Math.sin(perp)*wdt, tipX, tipY);
+        ctx.quadraticCurveTo(baseX - Math.cos(perp)*wdt, baseY - Math.sin(perp)*wdt, baseX, baseY);
+        ctx.closePath();
+        ctx.fillStyle = rgba(col, layer ? 0.5 : 0.85); setGlow(col, 12); ctx.fill();
+      }
+      ctx.rotate(rot * 0.5);
+    }
+    clearGlow();
+    // glowing core
+    const col = mix(theme.grad[0], theme.grad[1], 0.5);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
+    g.addColorStop(0, "rgba(255,255,255,0.95)"); g.addColorStop(0.5, rgba(col, 0.7)); g.addColorStop(1, rgba(col, 0));
+    setGlow(col, 36); ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, R * (0.7 + bass * 0.4), 0, Math.PI*2); ctx.fill();
+    clearGlow(); ctx.restore();
+  }
+
   function roundRect(x, y, w, h, r) {
     if (h <= 0) return;
     r = Math.min(r, h/2, w/2);
@@ -1019,8 +1421,32 @@
     return Math.floor(s/60) + ":" + String(s%60).padStart(2, "0");
   }
   function updateTime(el) {
-    const dur = audioBuffer ? audioBuffer.duration : 0;
+    const dur = playing ? clipDur : (audioBuffer ? clipBounds().dur : 0);
     timeEl.textContent = fmt(el) + " / " + fmt(dur);
+  }
+
+  // Parse "0:30", "1:05.5" or plain seconds "30" → seconds (null if blank/invalid).
+  function parseTime(str) {
+    str = String(str == null ? "" : str).trim();
+    if (!str) return null;
+    let s;
+    if (str.includes(":")) {
+      const parts = str.split(":").map(p => parseFloat(p));
+      if (parts.some(isNaN)) return null;
+      s = parts.reduce((acc, p) => acc * 60 + p, 0);
+    } else { s = parseFloat(str); }
+    return isNaN(s) ? null : s;
+  }
+
+  // Resolve the trim inputs to a valid { start, end, dur } within the track.
+  function clipBounds() {
+    const dur = audioBuffer ? audioBuffer.duration : 0;
+    let s = parseTime(clipStartIn.value);
+    let e = parseTime(clipEndIn.value);
+    s = (s == null || s < 0) ? 0 : Math.min(s, dur);
+    e = (e == null || e <= 0 || e > dur) ? dur : e;
+    if (e <= s) e = dur;               // invalid range → run to the end
+    return { start: s, end: e, dur: Math.max(0, e - s) };
   }
 
   // ---- Background images (timed slideshow) ----------------------------------
@@ -1097,10 +1523,16 @@
 
   titleInput.addEventListener("input", () => { if (!playing) drawIdle(); });
   titlePosSel.addEventListener("change", () => { if (!playing) drawIdle(); });
+  [clipStartIn, clipEndIn].forEach(el => el.addEventListener("input", () => { if (!playing) updateTime(0); }));
   glowChk.addEventListener("change", () => { if (!playing) drawIdle(); });
   shuffleChk.addEventListener("change", () => {
     styleSel.disabled = shuffleChk.checked; // dropdown is driven automatically while shuffling
+    shuffleScopeField.hidden = !shuffleChk.checked;
     if (shuffleChk.checked && playing) scheduleShuffle(audioCtx.currentTime - startTime);
+  });
+  shuffleScopeSel.addEventListener("change", () => {
+    // if the current style is now out of scope, jump to an in-scope one immediately
+    if (shuffleChk.checked && playing && !shufflePool().includes(styleSel.value)) shuffleStyle();
   });
   drawIdle();
   if (!window.MediaRecorder) {

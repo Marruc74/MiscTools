@@ -12,6 +12,7 @@ Or, since the repo is public, serve it straight from GitHub Pages once Pages is 
 
 1. **Drop an audio file** onto the dashed box (or click to browse). MP3, WAV, OGG, and M4A all work.
 2. Choose a **visualizer style**, **color theme**, and **resolution** (includes 16:9, 1:1 square, and 9:16 vertical for Reels/Shorts).
+   - *(Optional)* **Clip to a section** — set a **Start** and **End** to render and record only part of the track (great for shorts). Accepts `0:30` or plain seconds `30`; leave blank for the whole track. Trimmed clips download with the range in the filename (e.g. `song_30-60s.webm`).
 3. *(Optional)* Add one or more **background images** and set the **second** each appears. When any are set, the visualizer shrinks into a rounded panel composited over the photo, and you can choose its **position** — a bottom bar or any of the four corners.
 4. *(Optional)* Type a **song title** — it's auto-filled from the filename and drawn over the video. Pick its position (top/bottom, left/center) or hide it.
 5. Press **▶ Preview** to see it live, or **● Record video** to capture.
@@ -41,11 +42,24 @@ When any images are present, the visualizer renders into a smaller rounded, glow
 - **Kaleidoscope** — radial spectrum mirrored into 8 rotating wedges, with trails
 - **DNA helix** — two glowing strands with rungs, twisting and pulsing with the beat
 - **Spiral** — dots on a rotating spiral, sized by frequency, with trails
-- **Enchanted ✨** — a fantasy/magic scene: a glowing arcane rune-circle (counter-rotating rings with frequency-reactive ticks and a bright core orb), rising magical motes that drift and flicker, and star sparkles that twinkle on the highs
+### Fantasy ✨
+
+A set of magic-themed styles, grouped separately in the style picker:
+
+- **Enchanted** — a glowing arcane rune-circle (counter-rotating rings with frequency-reactive ticks and a bright core orb), rising magical motes that drift and flicker, and star sparkles that twinkle on the highs
+- **Fairy dust** — a swirling, twinkling cloud of glowing motes orbiting a soft core, with star sparkles mixed in
+- **Crystal orb** — a slowly rotating faceted gem whose facets stretch with the spectrum, lit by inner facet lines and a bright glint
+- **Phoenix flames** — a rising plume of fiery motes (white-hot at the base, cooling toward the tips) that flares with the beat over a glowing ember
+- **Aurora veil** — hanging shimmering curtains of light that sway with the spectrum, under a sky of twinkling stars
+- **Summoning circle** — a rotating arcane ring of radial spectrum ticks with a counter-spinning pentagram and a pulsing core
+- **Enchanted bars** — a fantasy take on *Neon bars*: gem-tipped, white-hot glowing columns with a soft reflection and rising sparkle motes
+- **Enchanted mirror** — a fantasy take on *Mirror bars*: glowing spires mirrored across a shimmering surface line, with twinkles
+- **Mystic peaks** — a fantasy take on *Spectrum mountains*: a glowing ridge under a glowing moon, with fireflies drifting above it
+- **Arcane bloom** — a fantasy take on *Radial spectrum*: the spectrum drawn as a rotating two-layer flower/mandala of petals around a glowing core
 
 A **Glow / bloom** toggle adds shadow-based bloom to every style (prettier, but heavier — turn it off if recording stutters).
 
-A **Shuffle styles every ~10s** toggle auto-switches to a random (different) style **and color theme** every 8–13 seconds, so a single recording cycles through the visualizers and palettes. Turning it on disables the manual style picker.
+A **Shuffle styles every ~10s** toggle auto-switches to a random (different) style **and color theme** every 8–13 seconds, so a single recording cycles through the visualizers and palettes. Turning it on disables the manual style picker and reveals a **Randomize from** selector — choose **All styles**, **Fantasy only ✨**, or **Non-fantasy only** to control which pool the shuffle draws from.
 
 ## How it works
 
