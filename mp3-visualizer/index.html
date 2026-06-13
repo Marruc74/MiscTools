@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MP3 → Visualizer Video</title>
+<style>
+  :root {
+    --bg: #07070d;
+    --panel: #11121c;
+    --panel-2: #181a28;
+    --line: #262838;
+    --text: #e9eaf6;
+    --muted: #8b8da8;
+    --accent: #6c7bff;
+    --accent-2: #ff5b9e;
+    --good: #41d6a0;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background:
+      radial-gradient(1200px 700px at 80% -10%, rgba(108,123,255,0.18), transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, rgba(255,91,158,0.14), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+  header {
+    padding: 22px 28px 14px;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 19px; margin: 0; letter-spacing: -0.01em; font-weight: 650; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 20px;
+    padding: 0 28px 28px;
+    min-height: 0;
+  }
+  @media (max-width: 880px) { main { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+  .controls { display: flex; flex-direction: column; gap: 18px; align-self: start; }
+
+  .drop {
+    border: 1.5px dashed var(--line);
+    border-radius: var(--radius);
+    padding: 26px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    background: rgba(255,255,255,0.015);
+  }
+  .drop:hover, .drop.over { border-color: var(--accent); background: rgba(108,123,255,0.08); }
+  .drop strong { display: block; margin-bottom: 4px; }
+  .drop span { color: var(--muted); font-size: 12.5px; }
+  .drop .name { color: var(--good); margin-top: 8px; font-size: 13px; word-break: break-all; }
+  input[type=file] { display: none; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field > label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  select, button {
+    font: inherit; color: var(--text);
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 9px; padding: 9px 11px; cursor: pointer;
+  }
+  select:focus, button:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+  .swatch { width: 30px; height: 30px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; }
+  .swatch.active { border-color: #fff; }
+
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; }
+
+  button.primary {
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    border: none; font-weight: 600; color: #fff;
+  }
+  button.primary:disabled { opacity: .45; cursor: not-allowed; }
+  button.ghost:disabled { opacity: .4; cursor: not-allowed; }
+
+  .stage { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .canvas-wrap {
+    position: relative; flex: 1; min-height: 360px;
+    border-radius: var(--radius); overflow: hidden;
+    border: 1px solid var(--line);
+    background: #000;
+    display: flex; align-items: center; justify-content: center;
+  }
+  canvas { width: 100%; height: 100%; display: block; }
+
+  .badge {
+    position: absolute; top: 12px; left: 12px;
+    background: rgba(0,0,0,0.55); border: 1px solid var(--line);
+    padding: 5px 10px; border-radius: 999px; font-size: 12px;
+    display: none; align-items: center; gap: 7px; backdrop-filter: blur(6px);
+  }
+  .badge.show { display: inline-flex; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #ff4d4d; animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+
+  .transport { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .time { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; min-width: 92px; }
+  .hint { color: var(--muted); font-size: 12.5px; }
+  a.dl { color: var(--good); font-weight: 600; text-decoration: none; }
+  a.dl:hover { text-decoration: underline; }
+  .resbar { height: 4px; border-radius: 999px; background: var(--line); overflow: hidden; }
+  .resbar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .1s; }
+</style>
+</head>
+<body>
+<header>
+  <h1>MP3 → Visualizer Video</h1>
+  <span class="sub">Drop an MP3, pick a style, record a video — all in your browser.</span>
+</header>
+
+<main>
+  <section class="panel controls">
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose an audio file">
+      <strong>Drop audio here</strong>
+      <span>or click to browse · MP3, WAV, OGG, M4A</span>
+      <div class="name" id="fileName"></div>
+    </div>
+    <input type="file" id="file" accept="audio/*" />
+
+    <div class="field">
+      <label for="style">Visualizer style</label>
+      <select id="style">
+        <option value="bars">Frequency bars</option>
+        <option value="mirror">Mirror bars</option>
+        <option value="circle">Radial spectrum</option>
+        <option value="wave">Waveform</option>
+        <option value="particles">Pulse rings</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Color theme</label>
+      <div class="swatches" id="swatches"></div>
+    </div>
+
+    <div class="field">
+      <label for="res">Resolution</label>
+      <select id="res">
+        <option value="1280x720" selected>720p (1280×720)</option>
+        <option value="1920x1080">1080p (1920×1080)</option>
+        <option value="1080x1080">Square (1080×1080)</option>
+        <option value="1080x1920">Vertical 9:16 (1080×1920)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="bg">Background image (optional)</label>
+      <select id="bg" disabled><option>None</option></select>
+    </div>
+
+    <button class="primary" id="record" disabled>● Record video</button>
+    <p class="hint">Recording runs in real time and plays the song aloud. The video downloads as <b>.webm</b> when it finishes.</p>
+  </section>
+
+  <section class="stage">
+    <div class="canvas-wrap">
+      <canvas id="canvas"></canvas>
+      <div class="badge" id="badge"><span class="dot"></span><span id="badgeText">REC</span></div>
+    </div>
+    <div class="resbar"><i id="progress"></i></div>
+    <div class="transport">
+      <button class="ghost" id="preview" disabled>▶ Preview</button>
+      <button class="ghost" id="stop" disabled>■ Stop</button>
+      <span class="time" id="time">0:00 / 0:00</span>
+      <span id="output" class="hint"></span>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---- Themes ---------------------------------------------------------------
+  const THEMES = [
+    { name: "Aurora",  bg: "#07070d", grad: ["#6c7bff", "#ff5b9e"] },
+    { name: "Sunset",  bg: "#0d0606", grad: ["#ff8a3d", "#ff2d6f"] },
+    { name: "Mint",    bg: "#04100c", grad: ["#41d6a0", "#3da8ff"] },
+    { name: "Mono",    bg: "#0a0a0a", grad: ["#ffffff", "#9aa0b5"] },
+    { name: "Lava",    bg: "#100404", grad: ["#ffd166", "#ef476f"] },
+    { name: "Ice",     bg: "#040a12", grad: ["#9be7ff", "#6c7bff"] },
+  ];
+  let theme = THEMES[0];
+
+  // ---- DOM ------------------------------------------------------------------
+  const $ = (id) => document.getElementById(id);
+  const canvas = $("canvas"), ctx = canvas.getContext("2d");
+  const fileInput = $("file"), drop = $("drop"), fileName = $("fileName");
+  const styleSel = $("style"), resSel = $("res");
+  const recordBtn = $("record"), previewBtn = $("preview"), stopBtn = $("stop");
+  const badge = $("badge"), badgeText = $("badgeText");
+  const timeEl = $("time"), progressEl = $("progress"), outputEl = $("output");
+
+  // ---- Audio state ----------------------------------------------------------
+  let audioCtx = null, analyser = null, audioBuffer = null;
+  let sourceNode = null, gainNode = null, streamDest = null;
+  let freqData = null, timeData = null;
+  let baseName = "visualizer";
+
+  let rafId = null, startTime = 0, playing = false, recording = false;
+  let recorder = null, chunks = [];
+
+  // ---- Sizing ---------------------------------------------------------------
+  function setCanvasSize() {
+    const [w, h] = resSel.value.split("x").map(Number);
+    canvas.width = w; canvas.height = h;
+  }
+  resSel.addEventListener("change", () => { setCanvasSize(); drawIdle(); });
+  setCanvasSize();
+
+  // ---- Swatches -------------------------------------------------------------
+  const swatchWrap = $("swatches");
+  THEMES.forEach((t, i) => {
+    const s = document.createElement("div");
+    s.className = "swatch" + (i === 0 ? " active" : "");
+    s.style.background = `linear-gradient(135deg, ${t.grad[0]}, ${t.grad[1]})`;
+    s.title = t.name;
+    s.addEventListener("click", () => {
+      theme = t;
+      [...swatchWrap.children].forEach(c => c.classList.remove("active"));
+      s.classList.add("active");
+      if (!playing) drawIdle();
+    });
+    swatchWrap.appendChild(s);
+  });
+  styleSel.addEventListener("change", () => { if (!playing) drawIdle(); });
+
+  // ---- File loading ---------------------------------------------------------
+  drop.addEventListener("click", () => fileInput.click());
+  drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") fileInput.click(); });
+  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+  drop.addEventListener("drop", (e) => {
+    e.preventDefault(); drop.classList.remove("over");
+    if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener("change", () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+
+  async function loadFile(file) {
+    fileName.textContent = "Decoding " + file.name + "…";
+    baseName = file.name.replace(/\.[^.]+$/, "") || "visualizer";
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const arr = await file.arrayBuffer();
+      audioBuffer = await audioCtx.decodeAudioData(arr);
+      fileName.textContent = file.name + "  ·  " + fmt(audioBuffer.duration);
+      recordBtn.disabled = false; previewBtn.disabled = false;
+      outputEl.textContent = "";
+      updateTime(0);
+      drawIdle();
+    } catch (err) {
+      fileName.textContent = "Could not decode that file. Try a standard MP3/WAV.";
+      console.error(err);
+    }
+  }
+
+  // ---- Playback graph -------------------------------------------------------
+  function buildGraph(forRecording) {
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0.82;
+    freqData = new Uint8Array(analyser.frequencyBinCount);
+    timeData = new Uint8Array(analyser.fftSize);
+
+    gainNode = audioCtx.createGain();
+    sourceNode = audioCtx.createBufferSource();
+    sourceNode.buffer = audioBuffer;
+
+    sourceNode.connect(analyser);
+    analyser.connect(gainNode);
+    gainNode.connect(audioCtx.destination); // audible
+
+    if (forRecording) {
+      streamDest = audioCtx.createMediaStreamDestination();
+      gainNode.connect(streamDest); // captured
+    }
+  }
+
+  function start(forRecording) {
+    if (!audioBuffer) return;
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    buildGraph(forRecording);
+    sourceNode.onended = () => { if (playing) finish(); };
+    startTime = audioCtx.currentTime;
+    sourceNode.start(0);
+    playing = true;
+    previewBtn.disabled = true; recordBtn.disabled = true; stopBtn.disabled = false;
+    loop();
+  }
+
+  function finish() {
+    playing = false;
+    cancelAnimationFrame(rafId);
+    try { sourceNode && sourceNode.stop(); } catch (_) {}
+    if (recording && recorder && recorder.state !== "inactive") recorder.stop();
+    recording = false;
+    badge.classList.remove("show");
+    stopBtn.disabled = true; previewBtn.disabled = false; recordBtn.disabled = false;
+    progressEl.style.width = "0%";
+    drawIdle();
+  }
+
+  previewBtn.addEventListener("click", () => start(false));
+  stopBtn.addEventListener("click", finish);
+
+  // ---- Recording ------------------------------------------------------------
+  recordBtn.addEventListener("click", () => {
+    if (!audioBuffer) return;
+    outputEl.textContent = "";
+    start(true);
+
+    const fps = 60;
+    const videoStream = canvas.captureStream(fps);
+    const mixed = new MediaStream([
+      ...videoStream.getVideoTracks(),
+      ...streamDest.stream.getAudioTracks(),
+    ]);
+
+    const mime = pickMime();
+    recorder = new MediaRecorder(mixed, mime ? { mimeType: mime, videoBitsPerSecond: 8_000_000 } : undefined);
+    chunks = [];
+    recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: chunks[0] ? chunks[0].type : "video/webm" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = baseName + ".webm"; a.textContent = "⤓ Download " + baseName + ".webm";
+      a.className = "dl";
+      outputEl.textContent = ""; outputEl.appendChild(a);
+      // auto-trigger download too
+      const tmp = document.createElement("a");
+      tmp.href = url; tmp.download = baseName + ".webm"; tmp.click();
+    };
+    recording = true;
+    recorder.start();
+    badgeText.textContent = "REC";
+    badge.classList.add("show");
+  });
+
+  function pickMime() {
+    const c = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+    return c.find(m => MediaRecorder.isTypeSupported(m)) || "";
+  }
+
+  // ---- Render loop ----------------------------------------------------------
+  function loop() {
+    rafId = requestAnimationFrame(loop);
+    const elapsed = audioCtx.currentTime - startTime;
+    updateTime(elapsed);
+    if (audioBuffer) progressEl.style.width = Math.min(100, (elapsed / audioBuffer.duration) * 100) + "%";
+
+    analyser.getByteFrequencyData(freqData);
+    analyser.getByteTimeDomainData(timeData);
+    render(styleSel.value);
+  }
+
+  function paintBackground() {
+    ctx.fillStyle = theme.bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // subtle vignette
+    const g = ctx.createRadialGradient(canvas.width/2, canvas.height*0.4, 0, canvas.width/2, canvas.height/2, canvas.width*0.75);
+    g.addColorStop(0, "rgba(255,255,255,0.04)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function gradient(x0, y0, x1, y1) {
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, theme.grad[0]);
+    g.addColorStop(1, theme.grad[1]);
+    return g;
+  }
+
+  function render(style) {
+    const W = canvas.width, H = canvas.height;
+    paintBackground();
+    switch (style) {
+      case "bars":      return renderBars(W, H, false);
+      case "mirror":    return renderBars(W, H, true);
+      case "circle":    return renderCircle(W, H);
+      case "wave":      return renderWave(W, H);
+      case "particles": return renderRings(W, H);
+    }
+  }
+
+  function renderBars(W, H, mirror) {
+    const count = 72;
+    const step = Math.floor(freqData.length / count);
+    const bw = W / count;
+    ctx.fillStyle = gradient(0, H, 0, 0);
+    for (let i = 0; i < count; i++) {
+      let v = 0;
+      for (let j = 0; j < step; j++) v += freqData[i*step + j];
+      v = (v / step) / 255;
+      const bh = Math.pow(v, 1.4) * H * (mirror ? 0.46 : 0.92);
+      const x = i * bw + bw * 0.12;
+      const w = bw * 0.76;
+      if (mirror) {
+        roundRect(x, H/2 - bh, w, bh, w/2);
+        roundRect(x, H/2, w, bh, w/2);
+      } else {
+        roundRect(x, H - bh, w, bh, w/2);
+      }
+    }
+  }
+
+  function renderCircle(W, H) {
+    const cx = W/2, cy = H/2;
+    const R = Math.min(W, H) * 0.20;
+    const bars = 128;
+    const step = Math.floor(freqData.length / bars);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.strokeStyle = gradient(-R, -R, R, R);
+    ctx.lineCap = "round";
+    let bass = 0;
+    for (let i = 0; i < bars; i++) {
+      let v = 0;
+      for (let j = 0; j < step; j++) v += freqData[i*step + j];
+      v = (v / step) / 255;
+      if (i < 8) bass += v;
+      const len = v * R * 1.6;
+      const ang = (i / bars) * Math.PI * 2 - Math.PI/2;
+      const lw = Math.max(2, (Math.min(W,H)/520) * 6);
+      ctx.lineWidth = lw;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(ang) * R, Math.sin(ang) * R);
+      ctx.lineTo(Math.cos(ang) * (R + len), Math.sin(ang) * (R + len));
+      ctx.stroke();
+    }
+    bass /= 8;
+    ctx.beginPath();
+    ctx.fillStyle = gradient(-R, -R, R, R);
+    ctx.globalAlpha = 0.9;
+    ctx.arc(0, 0, R * (0.62 + bass * 0.5), 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function renderWave(W, H) {
+    ctx.lineWidth = Math.max(2, H/240);
+    ctx.strokeStyle = gradient(0, 0, W, 0);
+    ctx.beginPath();
+    const slice = W / timeData.length;
+    for (let i = 0; i < timeData.length; i++) {
+      const v = timeData[i] / 128 - 1; // -1..1
+      const y = H/2 + v * H * 0.4;
+      const x = i * slice;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    // glow reflection
+    ctx.globalAlpha = 0.18;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  let ringPhase = 0;
+  function renderRings(W, H) {
+    const cx = W/2, cy = H/2;
+    let energy = 0;
+    for (let i = 0; i < 24; i++) energy += freqData[i];
+    energy = energy / 24 / 255;
+    ringPhase += 0.01 + energy * 0.06;
+    const rings = 6;
+    for (let r = 0; r < rings; r++) {
+      const t = (ringPhase + r / rings) % 1;
+      const rad = t * Math.min(W, H) * 0.55;
+      ctx.globalAlpha = (1 - t) * 0.8;
+      ctx.lineWidth = 2 + energy * 14 * (1 - t);
+      ctx.strokeStyle = gradient(cx - rad, cy, cx + rad, cy);
+      ctx.beginPath();
+      ctx.arc(cx, cy, rad, 0, Math.PI*2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = gradient(cx-40, cy-40, cx+40, cy+40);
+    ctx.beginPath();
+    ctx.arc(cx, cy, 18 + energy * 60, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    if (h <= 0) return;
+    r = Math.min(r, h/2, w/2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.fill();
+  }
+
+  function drawIdle() {
+    const W = canvas.width, H = canvas.height;
+    paintBackground();
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.textAlign = "center";
+    ctx.font = `${Math.round(H/22)}px -apple-system, "Segoe UI", sans-serif`;
+    ctx.fillText(audioBuffer ? "Ready — press Preview or Record" : "Load an MP3 to begin",
+                 W/2, H/2);
+  }
+
+  // ---- Helpers --------------------------------------------------------------
+  function fmt(s) {
+    s = Math.max(0, Math.floor(s));
+    return Math.floor(s/60) + ":" + String(s%60).padStart(2, "0");
+  }
+  function updateTime(el) {
+    const dur = audioBuffer ? audioBuffer.duration : 0;
+    timeEl.textContent = fmt(el) + " / " + fmt(dur);
+  }
+
+  drawIdle();
+  if (!window.MediaRecorder) {
+    outputEl.textContent = "This browser lacks MediaRecorder — recording is unavailable.";
+    recordBtn.disabled = true;
+  }
+})();
+</script>
+</body>
+</html>
