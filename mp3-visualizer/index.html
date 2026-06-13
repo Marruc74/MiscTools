@@ -87,8 +87,14 @@
 
   .toggle { display: flex; align-items: center; gap: 9px; cursor: pointer; user-select: none; font-size: 13px; color: var(--muted); }
   .toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
-  .bgrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .bgrow .hint { word-break: break-all; }
+  .bglist { display: flex; flex-direction: column; gap: 8px; }
+  .bgitem { display: flex; align-items: center; gap: 8px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; padding: 6px 8px; }
+  .bgitem img.thumb { width: 42px; height: 28px; object-fit: cover; border-radius: 5px; flex: none; }
+  .bgitem .bgnm { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bgitem .att { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); flex: none; }
+  .bgitem .att input { width: 54px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font: inherit; }
+  .bgitem .x { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 4px; flex: none; }
+  .bgitem .x:hover { color: #ff5b6b; }
   [hidden] { display: none !important; }
 
   .row { display: flex; gap: 10px; }
@@ -179,13 +185,11 @@
     </div>
 
     <div class="field">
-      <label>Background image (optional)</label>
-      <button class="ghost" type="button" id="bgBtn">＋ Choose image…</button>
-      <input type="file" id="bgFile" accept="image/*" />
-      <div class="bgrow" id="bgRow" hidden>
-        <span class="hint" id="bgName"></span>
-        <button class="ghost" type="button" id="bgClear">Remove</button>
-      </div>
+      <label>Background images (optional)</label>
+      <button class="ghost" type="button" id="bgBtn">＋ Add image(s)…</button>
+      <input type="file" id="bgFile" accept="image/*" multiple />
+      <div class="bglist" id="bgList"></div>
+      <span class="hint" id="bgHint" hidden>Each image crossfades in at the second you set. Add several for a slideshow.</span>
     </div>
 
     <div class="field" id="placeField" hidden>
@@ -247,10 +251,10 @@
   let DW = canvas.width, DH = canvas.height; // current draw-target dimensions
   const fileInput = $("file"), drop = $("drop"), fileName = $("fileName");
   const styleSel = $("style"), resSel = $("res"), glowChk = $("glow"), shuffleChk = $("shuffle");
-  const bgBtn = $("bgBtn"), bgFile = $("bgFile"), bgRow = $("bgRow"), bgName = $("bgName"), bgClear = $("bgClear");
+  const bgBtn = $("bgBtn"), bgFile = $("bgFile"), bgList = $("bgList"), bgHint = $("bgHint");
   const placeField = $("placeField"), placeSel = $("place");
   const STYLES = ["bars", "mirror", "spectrum", "circle", "blob", "wave", "galaxy", "rings", "led", "kaleido", "dna", "spiral"];
-  let bgImg = null;
+  let bgImages = []; // [{ img, name, url, time }] — timed background slideshow
   const recordBtn = $("record"), previewBtn = $("preview"), stopBtn = $("stop");
   const badge = $("badge"), badgeText = $("badgeText");
   const timeEl = $("time"), progressEl = $("progress"), outputEl = $("output");
@@ -448,7 +452,7 @@
 
     analyser.getByteFrequencyData(freqData);
     analyser.getByteTimeDomainData(timeData);
-    drawScene(styleSel.value);
+    drawScene(styleSel.value, elapsed);
     firstFrame = false;
   }
 
@@ -499,8 +503,8 @@
 
   // Compose a frame: full-frame background image + visualizer panel, or just
   // the full-canvas visualizer when no background is set.
-  function drawScene(style) {
-    if (!bgImg) {
+  function drawScene(style, elapsed) {
+    if (!bgImages.length) {
       ctx = mainCtx; DW = canvas.width; DH = canvas.height;
       renderStyle(style);
       return;
@@ -512,7 +516,7 @@
     renderStyle(style);
     // composite onto the main canvas
     ctx = mainCtx; DW = canvas.width; DH = canvas.height;
-    drawCover(mainCtx, bgImg, canvas.width, canvas.height);
+    paintBgImages(mainCtx, elapsed, canvas.width, canvas.height);
     const rad = Math.round(Math.min(r.w, r.h) * 0.07);
     mainCtx.save();
     mainCtx.shadowColor = "rgba(0,0,0,0.45)"; mainCtx.shadowBlur = 26; mainCtx.shadowOffsetY = 10;
@@ -862,8 +866,8 @@
   function drawIdle() {
     ctx = mainCtx; DW = canvas.width; DH = canvas.height; clearGlow();
     const W = canvas.width, H = canvas.height;
-    if (bgImg) {
-      drawCover(mainCtx, bgImg, W, H);
+    if (bgImages.length) {
+      paintBgImages(mainCtx, 0, W, H);
       const r = vizRect();
       const rad = Math.round(Math.min(r.w, r.h) * 0.07);
       roundPath(mainCtx, r.x, r.y, r.w, r.h, rad);
@@ -888,29 +892,76 @@
     timeEl.textContent = fmt(el) + " / " + fmt(dur);
   }
 
-  // ---- Background image -----------------------------------------------------
+  // ---- Background images (timed slideshow) ----------------------------------
+  const BG_FADE = 1.2; // crossfade duration in seconds
+
   bgBtn.addEventListener("click", () => bgFile.click());
-  bgFile.addEventListener("change", () => { if (bgFile.files[0]) loadBackground(bgFile.files[0]); });
-  bgClear.addEventListener("click", () => {
-    if (bgImg && bgImg.src) URL.revokeObjectURL(bgImg.src);
-    bgImg = null; bgFile.value = "";
-    bgRow.hidden = true; placeField.hidden = true;
-    firstFrame = true;
-    if (!playing) drawIdle();
-  });
+  bgFile.addEventListener("change", () => { addImages(bgFile.files); bgFile.value = ""; });
   placeSel.addEventListener("change", () => { firstFrame = true; if (!playing) drawIdle(); });
 
-  function loadBackground(file) {
-    const img = new Image();
-    img.onload = () => {
-      bgImg = img;
-      bgName.textContent = file.name;
-      bgRow.hidden = false; placeField.hidden = false;
-      firstFrame = true;
-      if (!playing) drawIdle();
-    };
-    img.onerror = () => { bgName.textContent = "Could not load that image."; bgRow.hidden = false; };
-    img.src = URL.createObjectURL(file);
+  function addImages(files) {
+    let t = bgImages.reduce((m, b) => Math.max(m, b.time), -5) + 5; // space new images out by 5s
+    [...files].forEach((file) => {
+      const img = new Image();
+      img.onload = () => { renderBgList(); if (!playing) drawIdle(); };
+      img.src = URL.createObjectURL(file);
+      bgImages.push({ img, name: file.name, url: img.src, time: bgImages.length ? Math.max(0, t) : 0 });
+      t += 5;
+    });
+    syncBgUI();
+  }
+
+  function syncBgUI() {
+    placeField.hidden = bgImages.length === 0;
+    bgHint.hidden = bgImages.length === 0;
+    renderBgList();
+    if (!playing) drawIdle();
+  }
+
+  function renderBgList() {
+    bgList.innerHTML = "";
+    bgImages.forEach((b, i) => {
+      const row = document.createElement("div");
+      row.className = "bgitem";
+      const im = document.createElement("img"); im.className = "thumb"; im.src = b.url;
+      const nm = document.createElement("span"); nm.className = "bgnm"; nm.textContent = b.name;
+      const att = document.createElement("label"); att.className = "att";
+      const inp = document.createElement("input");
+      inp.type = "number"; inp.min = "0"; inp.step = "0.5"; inp.value = b.time;
+      inp.addEventListener("input", () => { b.time = Math.max(0, parseFloat(inp.value) || 0); if (!playing) drawIdle(); });
+      inp.addEventListener("change", () => { bgImages.sort((a, c) => a.time - c.time); renderBgList(); });
+      att.append("at ", inp, " s");
+      const x = document.createElement("button"); x.className = "x"; x.textContent = "✕"; x.title = "Remove";
+      x.addEventListener("click", () => {
+        URL.revokeObjectURL(b.url); bgImages.splice(i, 1);
+        firstFrame = true; syncBgUI();
+      });
+      row.append(im, nm, att, x);
+      bgList.appendChild(row);
+    });
+  }
+
+  // Pick the active image (and the one it's fading from) for a given time.
+  function currentBgFrame(elapsed) {
+    if (!bgImages.length) return null;
+    const list = bgImages.slice().sort((a, b) => a.time - b.time);
+    let idx = 0;
+    for (let i = 0; i < list.length; i++) { if (list[i].time <= elapsed) idx = i; else break; }
+    const cur = list[idx];
+    let prev = null, prog = 1;
+    if (idx > 0 && elapsed < cur.time + BG_FADE) { prev = list[idx - 1]; prog = Math.min(1, (elapsed - cur.time) / BG_FADE); }
+    return { cur, prev, prog };
+  }
+
+  function paintBgImages(c, elapsed, W, H) {
+    const f = currentBgFrame(elapsed);
+    if (!f) return;
+    if (f.prev && f.prog < 1) {
+      drawCover(c, f.prev.img, W, H);
+      c.globalAlpha = f.prog; drawCover(c, f.cur.img, W, H); c.globalAlpha = 1;
+    } else {
+      drawCover(c, f.cur.img, W, H);
+    }
   }
 
   glowChk.addEventListener("change", () => { if (!playing) drawIdle(); });

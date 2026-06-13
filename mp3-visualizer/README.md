@@ -12,13 +12,15 @@ Or, since the repo is public, serve it straight from GitHub Pages once Pages is 
 
 1. **Drop an audio file** onto the dashed box (or click to browse). MP3, WAV, OGG, and M4A all work.
 2. Choose a **visualizer style**, **color theme**, and **resolution** (includes 16:9, 1:1 square, and 9:16 vertical for Reels/Shorts).
-3. *(Optional)* Add a **background image**. When set, the visualizer shrinks into a rounded panel composited over the photo, and you can choose its **position** — a bottom bar or any of the four corners.
+3. *(Optional)* Add one or more **background images** and set the **second** each appears. When any are set, the visualizer shrinks into a rounded panel composited over the photo, and you can choose its **position** — a bottom bar or any of the four corners.
 4. Press **▶ Preview** to see it live, or **● Record video** to capture.
 5. When the track ends (or you press **■ Stop**), the video downloads automatically as a `.webm` with audio baked in.
 
-## Background image
+## Background images (timed slideshow)
 
-Add any image as a full-frame background. The visualizer then renders into a smaller rounded, glowing panel placed over it (bottom bar, or bottom-left / bottom-right / top-left / top-right corner). The image is scaled to cover the whole frame, and the entire composite — photo + panel — is what gets recorded. Remove the image to return to the full-screen visualizer.
+Add one or more images as a full-frame background. Each row in the list has an **"at … s"** field — the second at which that image becomes active. As playback passes each time, the background **crossfades** (1.2 s) from the previous image to the next, so a sequence of images plays as a synced slideshow behind the music.
+
+When any images are present, the visualizer renders into a smaller rounded, glowing panel placed over them (bottom bar, or bottom-left / bottom-right / top-left / top-right corner). Images are scaled to cover the whole frame, and the entire composite — photo + panel — is what gets recorded. Editing a time re-sorts the list automatically; the **✕** button removes an image. With no images, the visualizer fills the frame as before.
 
 ## Visualizer styles
 
