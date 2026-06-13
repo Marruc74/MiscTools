@@ -13,8 +13,13 @@ Or, since the repo is public, serve it straight from GitHub Pages once Pages is 
 1. **Drop an audio file** onto the dashed box (or click to browse). MP3, WAV, OGG, and M4A all work.
 2. Choose a **visualizer style**, **color theme**, and **resolution** (includes 16:9, 1:1 square, and 9:16 vertical for Reels/Shorts).
 3. *(Optional)* Add one or more **background images** and set the **second** each appears. When any are set, the visualizer shrinks into a rounded panel composited over the photo, and you can choose its **position** — a bottom bar or any of the four corners.
-4. Press **▶ Preview** to see it live, or **● Record video** to capture.
-5. When the track ends (or you press **■ Stop**), the video downloads automatically as a `.webm` with audio baked in.
+4. *(Optional)* Type a **song title** — it's auto-filled from the filename and drawn over the video. Pick its position (top/bottom, left/center) or hide it.
+5. Press **▶ Preview** to see it live, or **● Record video** to capture.
+6. When the track ends (or you press **■ Stop**), the video downloads automatically as a `.webm` with audio baked in.
+
+## Song title
+
+The title field is pre-filled from the audio filename (editable). It's rendered on top of the finished frame with a soft shadow so it stays readable over both the visualizer and any background photo. Position options: top-left (default), top-center, bottom-left, bottom-center, or hidden.
 
 ## Background images (timed slideshow)
 

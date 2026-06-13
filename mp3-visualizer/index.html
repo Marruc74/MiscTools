@@ -80,6 +80,12 @@
     border-radius: 9px; padding: 9px 11px; cursor: pointer;
   }
   select:focus, button:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  input[type=text] {
+    font: inherit; color: var(--text); width: 100%;
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 9px; padding: 9px 11px;
+  }
+  input[type=text]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
   .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
   .swatch { width: 30px; height: 30px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; }
@@ -203,6 +209,18 @@
       </select>
     </div>
 
+    <div class="field">
+      <label for="title">Song title (optional)</label>
+      <input type="text" id="title" placeholder="Shown on the video" />
+      <select id="titlePos">
+        <option value="tl">Title: top left</option>
+        <option value="tc">Title: top center</option>
+        <option value="bl">Title: bottom left</option>
+        <option value="bc">Title: bottom center</option>
+        <option value="none">Title: hidden</option>
+      </select>
+    </div>
+
     <label class="toggle"><input type="checkbox" id="glow" checked /> Glow / bloom (prettier, heavier)</label>
     <label class="toggle"><input type="checkbox" id="shuffle" /> Shuffle styles every ~10s</label>
 
@@ -253,6 +271,7 @@
   const styleSel = $("style"), resSel = $("res"), glowChk = $("glow"), shuffleChk = $("shuffle");
   const bgBtn = $("bgBtn"), bgFile = $("bgFile"), bgList = $("bgList"), bgHint = $("bgHint");
   const placeField = $("placeField"), placeSel = $("place");
+  const titleInput = $("title"), titlePosSel = $("titlePos");
   const STYLES = ["bars", "mirror", "spectrum", "circle", "blob", "wave", "galaxy", "rings", "led", "kaleido", "dna", "spiral"];
   let bgImages = []; // [{ img, name, url, time }] — timed background slideshow
   const recordBtn = $("record"), previewBtn = $("preview"), stopBtn = $("stop");
@@ -341,6 +360,7 @@
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const arr = await file.arrayBuffer();
       audioBuffer = await audioCtx.decodeAudioData(arr);
+      if (!titleInput.value.trim()) titleInput.value = baseName;
       fileName.textContent = file.name + "  ·  " + fmt(audioBuffer.duration);
       recordBtn.disabled = false; previewBtn.disabled = false;
       outputEl.textContent = "";
@@ -453,6 +473,7 @@
     analyser.getByteFrequencyData(freqData);
     analyser.getByteTimeDomainData(timeData);
     drawScene(styleSel.value, elapsed);
+    drawTitle(mainCtx, canvas.width, canvas.height);
     firstFrame = false;
   }
 
@@ -530,6 +551,26 @@
     mainCtx.restore();
     roundPath(mainCtx, r.x, r.y, r.w, r.h, rad);
     mainCtx.lineWidth = 1.5; mainCtx.strokeStyle = "rgba(255,255,255,0.16)"; mainCtx.stroke();
+  }
+
+  // Draw the song title on top of the finished frame (main canvas).
+  function drawTitle(c, W, H) {
+    const txt = titleInput.value.trim();
+    const pos = titlePosSel.value;
+    if (!txt || pos === "none") return;
+    const size = Math.round(H / 24);
+    const margin = Math.round(Math.min(W, H) * 0.05);
+    c.save();
+    c.font = `600 ${size}px -apple-system, "Segoe UI", Roboto, sans-serif`;
+    c.textBaseline = "middle";
+    const left = pos.endsWith("l");
+    c.textAlign = left ? "left" : "center";
+    const x = left ? margin : W / 2;
+    const y = pos.startsWith("t") ? margin + size * 0.6 : H - margin - size * 0.6;
+    c.shadowColor = "rgba(0,0,0,0.65)"; c.shadowBlur = Math.round(size * 0.5); c.shadowOffsetY = 2;
+    c.fillStyle = "#ffffff";
+    c.fillText(txt, x, y);
+    c.restore();
   }
 
   function vizRect() {
@@ -880,6 +921,7 @@
     mainCtx.textAlign = "center";
     mainCtx.font = `${Math.round(H/26)}px -apple-system, "Segoe UI", sans-serif`;
     mainCtx.fillText(audioBuffer ? "Ready — press Preview or Record" : "Load an MP3 to begin", W/2, H/2);
+    drawTitle(mainCtx, W, H);
   }
 
   // ---- Helpers --------------------------------------------------------------
@@ -964,6 +1006,8 @@
     }
   }
 
+  titleInput.addEventListener("input", () => { if (!playing) drawIdle(); });
+  titlePosSel.addEventListener("change", () => { if (!playing) drawIdle(); });
   glowChk.addEventListener("change", () => { if (!playing) drawIdle(); });
   shuffleChk.addEventListener("change", () => {
     styleSel.disabled = shuffleChk.checked; // dropdown is driven automatically while shuffling
