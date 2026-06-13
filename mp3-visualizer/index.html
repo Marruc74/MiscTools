@@ -236,6 +236,9 @@
     let next;
     do { next = STYLES[Math.floor(Math.random() * STYLES.length)]; } while (next === styleSel.value);
     styleSel.value = next;
+    let ti; const cur = THEMES.indexOf(theme);
+    do { ti = Math.floor(Math.random() * THEMES.length); } while (ti === cur);
+    setTheme(ti);
     firstFrame = true; particles = []; // clean slate for trail/particle styles
   }
 
@@ -266,17 +269,16 @@
 
   // ---- Swatches -------------------------------------------------------------
   const swatchWrap = $("swatches");
+  function setTheme(i) {
+    theme = THEMES[i];
+    [...swatchWrap.children].forEach((c, idx) => c.classList.toggle("active", idx === i));
+  }
   THEMES.forEach((t, i) => {
     const s = document.createElement("div");
     s.className = "swatch" + (i === 0 ? " active" : "");
     s.style.background = `linear-gradient(135deg, ${t.grad[0]}, ${t.grad[1]})`;
     s.title = t.name;
-    s.addEventListener("click", () => {
-      theme = t;
-      [...swatchWrap.children].forEach(c => c.classList.remove("active"));
-      s.classList.add("active");
-      if (!playing) drawIdle();
-    });
+    s.addEventListener("click", () => { setTheme(i); if (!playing) drawIdle(); });
     swatchWrap.appendChild(s);
   });
   styleSel.addEventListener("change", () => { if (!playing) drawIdle(); });
