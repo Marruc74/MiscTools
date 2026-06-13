@@ -172,6 +172,7 @@
     </div>
 
     <label class="toggle"><input type="checkbox" id="glow" checked /> Glow / bloom (prettier, heavier)</label>
+    <label class="toggle"><input type="checkbox" id="shuffle" /> Shuffle styles every ~10s</label>
 
     <button class="primary" id="record" disabled>● Record video</button>
     <p class="hint">Recording runs in real time and plays the song aloud. The video downloads as <b>.webm</b> when it finishes. Use 720p if recording stutters.</p>
@@ -213,7 +214,8 @@
   const $ = (id) => document.getElementById(id);
   const canvas = $("canvas"), ctx = canvas.getContext("2d");
   const fileInput = $("file"), drop = $("drop"), fileName = $("fileName");
-  const styleSel = $("style"), resSel = $("res"), glowChk = $("glow");
+  const styleSel = $("style"), resSel = $("res"), glowChk = $("glow"), shuffleChk = $("shuffle");
+  const STYLES = ["bars", "mirror", "spectrum", "circle", "blob", "wave", "galaxy", "rings"];
   const recordBtn = $("record"), previewBtn = $("preview"), stopBtn = $("stop");
   const badge = $("badge"), badgeText = $("badgeText");
   const timeEl = $("time"), progressEl = $("progress"), outputEl = $("output");
@@ -226,7 +228,16 @@
 
   let rafId = null, startTime = 0, playing = false, recording = false;
   let recorder = null, chunks = [];
-  let firstFrame = true, rot = 0, ringPhase = 0, particles = [];
+  let firstFrame = true, rot = 0, ringPhase = 0, particles = [], shuffleNextAt = 0;
+
+  // Switch to a random (different) style and schedule the next switch ~10s out.
+  function scheduleShuffle(elapsed) { shuffleNextAt = elapsed + 8 + Math.random() * 5; }
+  function shuffleStyle() {
+    let next;
+    do { next = STYLES[Math.floor(Math.random() * STYLES.length)]; } while (next === styleSel.value);
+    styleSel.value = next;
+    firstFrame = true; particles = []; // clean slate for trail/particle styles
+  }
 
   // ---- Color helpers --------------------------------------------------------
   function hexToRgb(h) {
@@ -326,6 +337,7 @@
     if (audioCtx.state === "suspended") audioCtx.resume();
     buildGraph(forRecording);
     firstFrame = true; particles = []; rot = 0; ringPhase = 0;
+    if (shuffleChk.checked) scheduleShuffle(0);
     sourceNode.onended = () => { if (playing) finish(); };
     startTime = audioCtx.currentTime;
     sourceNode.start(0);
@@ -393,6 +405,8 @@
     const elapsed = audioCtx.currentTime - startTime;
     updateTime(elapsed);
     if (audioBuffer) progressEl.style.width = Math.min(100, (elapsed / audioBuffer.duration) * 100) + "%";
+
+    if (shuffleChk.checked && elapsed >= shuffleNextAt) { shuffleStyle(); scheduleShuffle(elapsed); }
 
     analyser.getByteFrequencyData(freqData);
     analyser.getByteTimeDomainData(timeData);
@@ -661,6 +675,10 @@
   }
 
   glowChk.addEventListener("change", () => { if (!playing) drawIdle(); });
+  shuffleChk.addEventListener("change", () => {
+    styleSel.disabled = shuffleChk.checked; // dropdown is driven automatically while shuffling
+    if (shuffleChk.checked && playing) scheduleShuffle(audioCtx.currentTime - startTime);
+  });
   drawIdle();
   if (!window.MediaRecorder) {
     outputEl.textContent = "This browser lacks MediaRecorder — recording is unavailable.";

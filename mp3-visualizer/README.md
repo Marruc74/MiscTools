@@ -28,6 +28,8 @@ Or, since the repo is public, serve it straight from GitHub Pages once Pages is 
 
 A **Glow / bloom** toggle adds shadow-based bloom to every style (prettier, but heavier — turn it off if recording stutters).
 
+A **Shuffle styles every ~10s** toggle auto-switches to a random (different) style every 8–13 seconds, so a single recording cycles through the visualizers. Turning it on disables the manual style picker.
+
 ## How it works
 
 - The Web Audio API decodes the file and an `AnalyserNode` provides frequency/time-domain data each frame.
