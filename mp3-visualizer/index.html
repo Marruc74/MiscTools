@@ -229,6 +229,7 @@
       <button class="ghost" type="button" id="bgBtn">＋ Add image(s)…</button>
       <input type="file" id="bgFile" accept="image/*" multiple />
       <div class="bglist" id="bgList"></div>
+      <button class="ghost" type="button" id="bgSpread" hidden>↔ Spread evenly across track</button>
       <span class="hint" id="bgHint" hidden>Each image crossfades in at the second you set. Add several for a slideshow.</span>
     </div>
 
@@ -326,7 +327,7 @@
   const fileInput = $("file"), drop = $("drop"), fileName = $("fileName");
   const styleSel = $("style"), resSel = $("res"), formatSel = $("format"), glowChk = $("glow"), shuffleChk = $("shuffle");
   const shuffleScopeField = $("shuffleScopeField"), shuffleScopeSel = $("shuffleScope");
-  const bgBtn = $("bgBtn"), bgFile = $("bgFile"), bgList = $("bgList"), bgHint = $("bgHint");
+  const bgBtn = $("bgBtn"), bgFile = $("bgFile"), bgList = $("bgList"), bgHint = $("bgHint"), bgSpread = $("bgSpread");
   const placeField = $("placeField"), placeSel = $("place");
   const titleInput = $("title"), titlePosSel = $("titlePos"), titleAnimSel = $("titleAnim"), titleSizeSel = $("titleSize");
   const clipStartIn = $("clipStart"), clipEndIn = $("clipEnd");
@@ -434,6 +435,7 @@
       recordBtn.disabled = false; previewBtn.disabled = false;
       outputEl.textContent = "";
       updateTime(0);
+      updateBgSpread();
       refreshIdle();
     } catch (err) {
       fileName.textContent = "Could not decode that file. Try a standard MP3/WAV.";
@@ -763,6 +765,14 @@
   // offX in [-1, 1] pans a too-wide image horizontally: -1 = left edge, 0 = centered, 1 = right edge.
   function drawCover(c, img, W, H, offX) {
     const ir = img.width / img.height, cr = W / H;
+    // Portrait image (taller than wide) in a landscape frame: fit it to the frame height and
+    // centre it, leaving black bars at the sides, rather than zooming in and cropping. Vertical
+    // and square frames keep the cover behaviour. Pan is ignored here (the whole image is shown).
+    if (ir < 1 && cr > 1) {
+      const dh = H, dw = H * ir;
+      c.drawImage(img, (W - dw) / 2, 0, dw, dh);
+      return;
+    }
     let dw, dh;
     if (ir > cr) { dh = H; dw = H * ir; } else { dw = W; dh = W / ir; }
     const slackX = (W - dw) / 2;                 // ≤ 0 when the image is wider than the frame
@@ -1592,7 +1602,21 @@
 
   bgBtn.addEventListener("click", () => bgFile.click());
   bgFile.addEventListener("change", () => { addImages(bgFile.files); bgFile.value = ""; });
+  bgSpread.addEventListener("click", spreadImages);
   placeSel.addEventListener("change", () => { firstFrame = true; if (!playing) drawIdle(); });
+
+  // Distribute the images evenly over the track (or trimmed clip), each getting an equal
+  // slice of time: image i of n starts at i · dur / n (first at 0).
+  function spreadImages() {
+    const dur = audioBuffer ? clipBounds().dur : 0;
+    const n = bgImages.length;
+    if (n < 2 || dur <= 0) return;
+    bgImages.sort((a, b) => a.time - b.time); // keep the current on-screen order
+    bgImages.forEach((b, i) => { b.time = Math.round(i * dur / n * 10) / 10; });
+    renderBgList();
+    refreshIdle();
+  }
+  function updateBgSpread() { bgSpread.hidden = !(audioBuffer && bgImages.length >= 2); }
 
   function addImages(files) {
     let t = bgImages.reduce((m, b) => Math.max(m, b.time), -5) + 5; // space new images out by 5s
@@ -1609,6 +1633,7 @@
   function syncBgUI() {
     placeField.hidden = bgImages.length === 0;
     bgHint.hidden = bgImages.length === 0;
+    updateBgSpread();
     renderBgList();
     refreshIdle();
   }
@@ -1691,6 +1716,7 @@
   function paintBgImages(c, elapsed, W, H) {
     const f = currentBgFrame(elapsed);
     if (!f) return;
+    c.fillStyle = "#000"; c.fillRect(0, 0, W, H); // black backdrop behind any letterboxed image
     if (f.prev && f.prog < 1) {
       drawCover(c, f.prev.img, W, H, effectiveOffX(f.prev, elapsed, f.list));
       c.globalAlpha = f.prog; drawCover(c, f.cur.img, W, H, effectiveOffX(f.cur, elapsed, f.list)); c.globalAlpha = 1;
