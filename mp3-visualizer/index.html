@@ -79,6 +79,7 @@
     background: var(--panel-2); border: 1px solid var(--line);
     border-radius: 9px; padding: 9px 11px; cursor: pointer;
   }
+  .field select { width: 100%; box-sizing: border-box; }
   select:focus, button:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   input[type=text] {
     font: inherit; color: var(--text); width: 100%;
@@ -94,11 +95,13 @@
   .toggle { display: flex; align-items: center; gap: 9px; cursor: pointer; user-select: none; font-size: 13px; color: var(--muted); }
   .toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
   .bglist { display: flex; flex-direction: column; gap: 8px; }
-  .bgitem { display: flex; align-items: center; gap: 8px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; padding: 6px 8px; }
+  .bgitem { display: flex; flex-direction: column; gap: 8px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; padding: 8px; }
+  .bgitem .bgtop { display: flex; align-items: center; gap: 8px; }
+  .bgitem .bgctrls { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
   .bgitem img.thumb { width: 42px; height: 28px; object-fit: cover; border-radius: 5px; flex: none; }
   .bgitem .bgnm { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bgitem .att { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); flex: none; }
-  .bgitem .att input { width: 54px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font: inherit; }
+  .bgitem .att input[type=number] { width: 54px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font: inherit; }
   .bgitem .x { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 4px; flex: none; }
   .bgitem .x:hover { color: #ff5b6b; }
   [hidden] { display: none !important; }
@@ -1645,7 +1648,11 @@
         URL.revokeObjectURL(b.url); bgImages.splice(i, 1);
         firstFrame = true; syncBgUI();
       });
-      row.append(im, nm, att, pan, auto, x);
+      const top = document.createElement("div"); top.className = "bgtop";
+      top.append(im, nm, x);
+      const ctrls = document.createElement("div"); ctrls.className = "bgctrls";
+      ctrls.append(att, pan, auto);
+      row.append(top, ctrls);
       bgList.appendChild(row);
     });
   }
