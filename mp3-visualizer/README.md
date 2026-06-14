@@ -12,7 +12,7 @@ Or, since the repo is public, serve it straight from GitHub Pages once Pages is 
 
 1. **Drop an audio file** onto the dashed box (or click to browse). MP3, WAV, OGG, and M4A all work.
 2. Choose a **visualizer style**, **color theme**, and **resolution** (includes 16:9, 1:1 square, and 9:16 vertical for Reels/Shorts).
-   - *(Optional)* **Clip to a section** — set a **Start** and **End** to render and record only part of the track (great for shorts). Accepts `0:30` or plain seconds `30`; leave blank for the whole track. Trimmed clips download with the range in the filename (e.g. `song_30-60s.webm`).
+   - *(Optional)* **Clip to a section** — set a **Start** and **End** to render and record only part of the track (great for shorts). Accepts `0:30` or plain seconds `30`; leave blank for the whole track. Trimmed clips download with the range in the filename (e.g. `song_30-60s.webm`). When an **End** is set, the volume fades to 0 over the last 2 seconds for a clean outro.
 3. *(Optional)* Add one or more **background images** and set the **second** each appears. When any are set, the visualizer shrinks into a rounded panel composited over the photo, and you can choose its **position** — a bottom bar or any of the four corners.
 4. *(Optional)* Type a **song title** — it's auto-filled from the filename and drawn over the video. Pick its position (top/bottom, left/center) or hide it.
 5. Press **▶ Preview** to see it live, or **● Record video** to capture.

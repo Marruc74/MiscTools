@@ -452,6 +452,12 @@
     clipDur = clip.dur;
     startTime = audioCtx.currentTime;
     sourceNode.start(0, clip.start, clip.dur); // play only the chosen section
+    // when an explicit end time is set, fade the volume to 0 over the last 2s
+    if (parseTime(clipEndIn.value) != null && clipDur > 0) {
+      const fade = Math.min(2, clipDur);
+      gainNode.gain.setValueAtTime(1, startTime + clipDur - fade);
+      gainNode.gain.linearRampToValueAtTime(0, startTime + clipDur);
+    }
     playing = true;
     previewBtn.disabled = true; recordBtn.disabled = true; stopBtn.disabled = false;
     loop();
