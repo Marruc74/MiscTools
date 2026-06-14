@@ -205,6 +205,14 @@
     </div>
 
     <div class="field">
+      <label for="format">Video format</label>
+      <select id="format">
+        <option value="webm" selected>WebM (VP9/VP8 — plays everywhere except Safari)</option>
+        <option value="mp4">MP4 (H.264 — universal; Chrome/Edge only)</option>
+      </select>
+    </div>
+
+    <div class="field">
       <label>Clip to a section (optional)</label>
       <div class="row">
         <div class="field"><label for="clipStart">Start</label><input type="text" id="clipStart" placeholder="0:00" /></div>
@@ -242,6 +250,20 @@
         <option value="bc">Title: bottom center</option>
         <option value="none">Title: hidden</option>
       </select>
+      <select id="titleAnim">
+        <option value="none">Animation: none (static)</option>
+        <option value="gradient" selected>Animation: gradient shift</option>
+        <option value="glow">Animation: pulsing glow</option>
+        <option value="type">Animation: typewriter</option>
+        <option value="wave">Animation: wavy letters</option>
+        <option value="shimmer">Animation: shimmer sweep</option>
+        <option value="bounce">Animation: beat bounce</option>
+      </select>
+      <select id="titleSize">
+        <option value="s">Size: small</option>
+        <option value="m" selected>Size: medium</option>
+        <option value="l">Size: large</option>
+      </select>
     </div>
 
     <label class="toggle"><input type="checkbox" id="glow" checked /> Glow / bloom (prettier, heavier)</label>
@@ -256,7 +278,7 @@
     </div>
 
     <button class="primary" id="record" disabled>● Record video</button>
-    <p class="hint">Recording runs in real time and plays the song aloud. The video downloads as <b>.webm</b> when it finishes. Use 720p if recording stutters.</p>
+    <p class="hint">Recording runs in real time and plays the song aloud. The video downloads in your chosen <b>format</b> when it finishes. Use 720p if recording stutters.</p>
   </section>
 
   <section class="stage">
@@ -299,11 +321,11 @@
   let ctx = mainCtx;            // current draw target (main canvas, or the panel)
   let DW = canvas.width, DH = canvas.height; // current draw-target dimensions
   const fileInput = $("file"), drop = $("drop"), fileName = $("fileName");
-  const styleSel = $("style"), resSel = $("res"), glowChk = $("glow"), shuffleChk = $("shuffle");
+  const styleSel = $("style"), resSel = $("res"), formatSel = $("format"), glowChk = $("glow"), shuffleChk = $("shuffle");
   const shuffleScopeField = $("shuffleScopeField"), shuffleScopeSel = $("shuffleScope");
   const bgBtn = $("bgBtn"), bgFile = $("bgFile"), bgList = $("bgList"), bgHint = $("bgHint");
   const placeField = $("placeField"), placeSel = $("place");
-  const titleInput = $("title"), titlePosSel = $("titlePos");
+  const titleInput = $("title"), titlePosSel = $("titlePos"), titleAnimSel = $("titleAnim"), titleSizeSel = $("titleSize");
   const clipStartIn = $("clipStart"), clipEndIn = $("clipEnd");
   const STYLES = ["bars", "mirror", "spectrum", "circle", "blob", "wave", "galaxy", "rings", "led", "kaleido", "dna", "spiral",
                   "enchanted", "fairy", "crystal", "phoenix", "veil", "summon", "fbars", "fmirror", "fspectrum", "fradial"];
@@ -409,7 +431,7 @@
       recordBtn.disabled = false; previewBtn.disabled = false;
       outputEl.textContent = "";
       updateTime(0);
-      drawIdle();
+      refreshIdle();
     } catch (err) {
       fileName.textContent = "Could not decode that file. Try a standard MP3/WAV.";
       console.error(err);
@@ -440,6 +462,7 @@
 
   function start(forRecording) {
     if (!audioBuffer) return;
+    stopIdle();
     if (audioCtx.state === "suspended") audioCtx.resume();
     buildGraph(forRecording);
     firstFrame = true; particles = []; sparkles = []; rot = 0; ringPhase = 0; ledPeaks = [];
@@ -472,7 +495,7 @@
     badge.classList.remove("show");
     stopBtn.disabled = true; previewBtn.disabled = false; recordBtn.disabled = false;
     progressEl.style.width = "0%";
-    drawIdle();
+    refreshIdle();
   }
 
   previewBtn.addEventListener("click", () => start(false));
@@ -495,19 +518,29 @@
       ...streamDest.stream.getAudioTracks(),
     ]);
 
-    const mime = pickMime();
+    const wantFormat = formatSel.value;
+    let mime = pickMime(wantFormat);
+    // Most browsers' MediaRecorder can't write MP4 (only Chrome/Edge can). Fall back to WebM.
+    const mp4Unavailable = wantFormat === "mp4" && !mime;
+    if (mp4Unavailable) mime = pickMime("webm");
+    const ext = mime && mime.includes("mp4") ? "mp4" : "webm";
+
     recorder = new MediaRecorder(mixed, mime ? { mimeType: mime, videoBitsPerSecond: 8_000_000 } : undefined);
     chunks = [];
     recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
     recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: chunks[0] ? chunks[0].type : "video/webm" });
+      const blob = new Blob(chunks, { type: chunks[0] ? chunks[0].type : (mime || "video/webm") });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url; a.download = outName + ".webm"; a.textContent = "⤓ Download " + outName + ".webm";
+      a.href = url; a.download = outName + "." + ext; a.textContent = "⤓ Download " + outName + "." + ext;
       a.className = "dl";
-      outputEl.textContent = ""; outputEl.appendChild(a);
+      outputEl.textContent = "";
+      if (mp4Unavailable) {
+        outputEl.appendChild(document.createTextNode("This browser can't record MP4 — saved as WebM instead (try Chrome or Edge for MP4). "));
+      }
+      outputEl.appendChild(a);
       const tmp = document.createElement("a");
-      tmp.href = url; tmp.download = outName + ".webm"; tmp.click();
+      tmp.href = url; tmp.download = outName + "." + ext; tmp.click();
     };
     recording = true;
     recorder.start();
@@ -515,8 +548,10 @@
     badge.classList.add("show");
   });
 
-  function pickMime() {
-    const c = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+  function pickMime(format) {
+    const c = format === "mp4"
+      ? ["video/mp4;codecs=avc1.42E01E,mp4a.40.2", "video/mp4;codecs=avc1,mp4a", "video/mp4;codecs=h264,aac", "video/mp4"]
+      : ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
     return c.find(m => MediaRecorder.isTypeSupported(m)) || "";
   }
 
@@ -532,7 +567,7 @@
     analyser.getByteFrequencyData(freqData);
     analyser.getByteTimeDomainData(timeData);
     drawScene(styleSel.value, elapsed);
-    drawTitle(mainCtx, canvas.width, canvas.height);
+    drawTitle(mainCtx, canvas.width, canvas.height, elapsed, elapsed);
     firstFrame = false;
   }
 
@@ -624,24 +659,91 @@
   }
 
   // Draw the song title on top of the finished frame (main canvas).
-  function drawTitle(c, W, H) {
-    const txt = titleInput.value.trim();
+  // t = continuously-advancing animation clock (seconds). reveal = seconds since playback
+  // start for the typewriter (null → show the whole title, e.g. while idle).
+  function drawTitle(c, W, H, t, reveal) {
+    const full = titleInput.value.trim();
     const pos = titlePosSel.value;
-    if (!txt || pos === "none") return;
-    const size = Math.round(H / 24);
+    if (!full || pos === "none") return;
+    const anim = titleAnimSel.value;
+    const sizeFactor = { s: 0.78, m: 1, l: 1.4 }[titleSizeSel.value] || 1;
+    const size = Math.round(H / 24 * sizeFactor);
     const margin = Math.round(Math.min(W, H) * 0.05);
+    // a beat signal: real bass while playing, a gentle simulated pulse while idle
+    const beat = playing ? bandEnergy(0, 8) : 0.35 + 0.22 * Math.sin(t * 2.2);
+
+    // typewriter reveal of the visible substring (+ a blinking caret while typing)
+    let txt = full, caret = false;
+    if (anim === "type" && reveal != null) {
+      const n = Math.floor(reveal / 0.07);
+      txt = full.slice(0, Math.min(full.length, n));
+      caret = n < full.length && Math.floor(t * 2) % 2 === 0;
+      if (!txt && !caret) return;
+    }
+
     c.save();
     c.font = `600 ${size}px -apple-system, "Segoe UI", Roboto, sans-serif`;
     c.textBaseline = "middle";
     const left = pos.endsWith("l");
-    c.textAlign = left ? "left" : "center";
-    const x = left ? margin : W / 2;
     const y = pos.startsWith("t") ? margin + size * 0.6 : H - margin - size * 0.6;
+    const totalW = c.measureText(txt).width;
+    const startX = left ? margin : W / 2 - totalW / 2; // lay text out left-to-right from here
+    c.textAlign = "left";
     c.shadowColor = "rgba(0,0,0,0.65)"; c.shadowBlur = Math.round(size * 0.5); c.shadowOffsetY = 2;
-    c.fillStyle = "#ffffff";
-    c.fillText(txt, x, y);
+
+    // pick a fill style for the run of text (gradient / shimmer animate across its width)
+    const fillFor = (x0, w) => {
+      if (anim === "gradient") {
+        const p = Math.sin(t * 0.9) * 0.5 + 0.5;
+        const g = c.createLinearGradient(x0, 0, x0 + w, 0);
+        g.addColorStop(0, mix(theme.grad[0], theme.grad[1], p));
+        g.addColorStop(1, mix(theme.grad[1], theme.grad[0], p));
+        return g;
+      }
+      if (anim === "shimmer") {
+        const sweep = (t * 0.35) % 1.4 - 0.2; // bright band travels across, with a gap between passes
+        const g = c.createLinearGradient(x0, 0, x0 + w, 0);
+        const stops = [[0, "#ffffff"], [clamp01(sweep - 0.16), "#ffffff"],
+                       [clamp01(sweep), theme.grad[1]], [clamp01(sweep + 0.16), "#ffffff"], [1, "#ffffff"]]
+          .filter(s => s[0] >= 0 && s[0] <= 1).sort((a, b) => a[0] - b[0]);
+        let last = -1;
+        for (const [o, col] of stops) { const oo = Math.min(1, Math.max(last + 1e-4, o)); g.addColorStop(oo, col); last = oo; }
+        return g;
+      }
+      return "#ffffff";
+    };
+
+    if (anim === "glow") {
+      // white text whose colored bloom throbs with the beat
+      if (glowChk.checked) { c.shadowColor = theme.grad[1]; c.shadowBlur = Math.round(size * (0.5 + beat * 1.6)); c.shadowOffsetY = 0; }
+      c.fillStyle = "#ffffff";
+      c.fillText(txt, startX, y);
+    } else if (anim === "bounce") {
+      // whole title scales/lifts with the beat
+      const s = 1 + beat * 0.16, cx = left ? startX : W / 2, dy = -beat * size * 0.12;
+      c.translate(cx, y + dy); c.scale(s, s); c.translate(-cx, -y);
+      c.fillStyle = "#ffffff";
+      c.fillText(txt, startX, y);
+    } else if (anim === "wave") {
+      // letters bob along a travelling sine wave
+      let x = startX;
+      for (let i = 0; i < txt.length; i++) {
+        const ch = txt[i], cw = c.measureText(ch).width;
+        const dy = Math.sin(t * 4 + i * 0.55) * size * 0.16;
+        c.fillStyle = "#ffffff";
+        c.fillText(ch, x, y + dy);
+        x += cw;
+      }
+    } else {
+      // none / gradient / shimmer — single run with the chosen fill
+      c.fillStyle = fillFor(startX, totalW || 1);
+      c.fillText(txt, startX, y);
+    }
+
+    if (caret) { c.fillStyle = "#ffffff"; c.fillText("▌", startX + totalW + size * 0.04, y); }
     c.restore();
   }
+  function clamp01(v) { return Math.min(1, Math.max(0, v)); }
 
   function vizRect() {
     const W = canvas.width, H = canvas.height, m = Math.round(Math.min(W, H) * 0.04);
@@ -655,11 +757,14 @@
     }
   }
 
-  function drawCover(c, img, W, H) {
+  // offX in [-1, 1] pans a too-wide image horizontally: -1 = left edge, 0 = centered, 1 = right edge.
+  function drawCover(c, img, W, H, offX) {
     const ir = img.width / img.height, cr = W / H;
     let dw, dh;
     if (ir > cr) { dh = H; dw = H * ir; } else { dw = W; dh = W / ir; }
-    c.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    const slackX = (W - dw) / 2;                 // ≤ 0 when the image is wider than the frame
+    const x = slackX * (1 + (offX || 0));        // offX scales within the available horizontal slack
+    c.drawImage(img, x, (H - dh) / 2, dw, dh);
   }
 
   function roundPath(c, x, y, w, h, r) {
@@ -1405,7 +1510,15 @@
     ctx = mainCtx; DW = canvas.width; DH = canvas.height; clearGlow();
     const W = canvas.width, H = canvas.height;
     if (bgImages.length) {
-      paintBgImages(mainCtx, 0, W, H);
+      // normally show the first image; if any image auto-pans, loop the timeline so the
+      // pan (and slideshow) preview live on the idle canvas
+      let bgElapsed = 0;
+      if (!playing && bgImages.some(b => b.autoPan)) {
+        const list = bgImages.slice().sort((a, b) => a.time - b.time);
+        const total = bgWindowEnd(list, list.length - 1);
+        if (total > 0) bgElapsed = (performance.now() / 1000) % total;
+      }
+      paintBgImages(mainCtx, bgElapsed, W, H);
       const r = vizRect();
       const rad = Math.round(Math.min(r.w, r.h) * 0.07);
       roundPath(mainCtx, r.x, r.y, r.w, r.h, rad);
@@ -1418,7 +1531,23 @@
     mainCtx.textAlign = "center";
     mainCtx.font = `${Math.round(H/26)}px -apple-system, "Segoe UI", sans-serif`;
     mainCtx.fillText(audioBuffer ? "Ready — press Preview or Record" : "Load an MP3 to begin", W/2, H/2);
-    drawTitle(mainCtx, W, H);
+    drawTitle(mainCtx, W, H, performance.now() / 1000, null);
+  }
+
+  // While idle (not playing), animate the title in place so its effect previews live.
+  // Only runs when there's actually an animated title to show, to avoid idle CPU churn.
+  let idleRaf = null;
+  function idleNeedsAnim() {
+    if (playing) return false;
+    const animTitle = titleInput.value.trim() && titlePosSel.value !== "none" && titleAnimSel.value !== "none";
+    return animTitle || bgImages.some(b => b.autoPan);
+  }
+  function idleLoop() { idleRaf = requestAnimationFrame(idleLoop); drawIdle(); }
+  function stopIdle() { if (idleRaf) { cancelAnimationFrame(idleRaf); idleRaf = null; } }
+  function refreshIdle() {
+    if (playing) return;
+    stopIdle();
+    if (idleNeedsAnim()) idleLoop(); else drawIdle();
   }
 
   // ---- Helpers --------------------------------------------------------------
@@ -1468,7 +1597,7 @@
       const img = new Image();
       img.onload = () => { renderBgList(); if (!playing) drawIdle(); };
       img.src = URL.createObjectURL(file);
-      bgImages.push({ img, name: file.name, url: img.src, time: bgImages.length ? Math.max(0, t) : 0 });
+      bgImages.push({ img, name: file.name, url: img.src, time: bgImages.length ? Math.max(0, t) : 0, offX: 0, autoPan: false });
       t += 5;
     });
     syncBgUI();
@@ -1478,7 +1607,7 @@
     placeField.hidden = bgImages.length === 0;
     bgHint.hidden = bgImages.length === 0;
     renderBgList();
-    if (!playing) drawIdle();
+    refreshIdle();
   }
 
   function renderBgList() {
@@ -1494,12 +1623,29 @@
       inp.addEventListener("input", () => { b.time = Math.max(0, parseFloat(inp.value) || 0); if (!playing) drawIdle(); });
       inp.addEventListener("change", () => { bgImages.sort((a, c) => a.time - c.time); renderBgList(); });
       att.append("at ", inp, " s");
+      const pan = document.createElement("label"); pan.className = "att";
+      pan.title = "Horizontal pan — choose which part of a too-wide image shows (handy for widescreen images in a 9:16 frame)";
+      const rng = document.createElement("input");
+      rng.type = "range"; rng.min = "-100"; rng.max = "100"; rng.step = "1";
+      rng.value = Math.round((b.offX || 0) * 100);
+      rng.style.width = "70px";
+      rng.disabled = !!b.autoPan;
+      rng.addEventListener("input", () => { b.offX = (parseFloat(rng.value) || 0) / 100; if (!playing) drawIdle(); });
+      pan.append("pan ", rng);
+      // auto-pan: sweep the image left→right over the time it's on screen (reveals the whole wide image)
+      const auto = document.createElement("label"); auto.className = "att";
+      auto.title = "Auto-pan left → right across the time this image is shown, revealing the whole image. Speed adapts to how long it's on screen (until the next image, or the end).";
+      const chk = document.createElement("input");
+      chk.type = "checkbox"; chk.checked = !!b.autoPan;
+      chk.style.cssText = "width:16px;height:16px;padding:0;border:0;background:none;accent-color:var(--accent);";
+      chk.addEventListener("change", () => { b.autoPan = chk.checked; rng.disabled = chk.checked; refreshIdle(); });
+      auto.append(chk, " auto →");
       const x = document.createElement("button"); x.className = "x"; x.textContent = "✕"; x.title = "Remove";
       x.addEventListener("click", () => {
         URL.revokeObjectURL(b.url); bgImages.splice(i, 1);
         firstFrame = true; syncBgUI();
       });
-      row.append(im, nm, att, x);
+      row.append(im, nm, att, pan, auto, x);
       bgList.appendChild(row);
     });
   }
@@ -1513,22 +1659,43 @@
     const cur = list[idx];
     let prev = null, prog = 1;
     if (idx > 0 && elapsed < cur.time + BG_FADE) { prev = list[idx - 1]; prog = Math.min(1, (elapsed - cur.time) / BG_FADE); }
-    return { cur, prev, prog };
+    return { cur, prev, prog, list };
+  }
+
+  // When an image stops being shown: the next image's start time, or the end of the
+  // clip/track for the last image (falls back to a 10s window when no audio is loaded yet).
+  function bgWindowEnd(list, idx) {
+    if (idx < list.length - 1) return list[idx + 1].time;
+    const end = (playing && clipDur > 0) ? clipDur : (audioBuffer ? clipBounds().dur : list[idx].time + 10);
+    return Math.max(list[idx].time + 0.001, end);
+  }
+
+  // Horizontal offset for an image at a given time: a fixed pan, or — when auto-pan is on —
+  // a left→right sweep across its on-screen window so the whole (too-wide) image is revealed.
+  function effectiveOffX(b, elapsed, list) {
+    if (!b.autoPan) return b.offX || 0;
+    const idx = list.indexOf(b);
+    const start = b.time, span = bgWindowEnd(list, idx) - start;
+    if (span <= 0) return -1;
+    const p = Math.min(1, Math.max(0, (elapsed - start) / span));
+    return -1 + 2 * p; // -1 (left edge) → +1 (right edge)
   }
 
   function paintBgImages(c, elapsed, W, H) {
     const f = currentBgFrame(elapsed);
     if (!f) return;
     if (f.prev && f.prog < 1) {
-      drawCover(c, f.prev.img, W, H);
-      c.globalAlpha = f.prog; drawCover(c, f.cur.img, W, H); c.globalAlpha = 1;
+      drawCover(c, f.prev.img, W, H, effectiveOffX(f.prev, elapsed, f.list));
+      c.globalAlpha = f.prog; drawCover(c, f.cur.img, W, H, effectiveOffX(f.cur, elapsed, f.list)); c.globalAlpha = 1;
     } else {
-      drawCover(c, f.cur.img, W, H);
+      drawCover(c, f.cur.img, W, H, effectiveOffX(f.cur, elapsed, f.list));
     }
   }
 
-  titleInput.addEventListener("input", () => { if (!playing) drawIdle(); });
-  titlePosSel.addEventListener("change", () => { if (!playing) drawIdle(); });
+  titleInput.addEventListener("input", () => refreshIdle());
+  titlePosSel.addEventListener("change", () => refreshIdle());
+  titleAnimSel.addEventListener("change", () => refreshIdle());
+  titleSizeSel.addEventListener("change", () => refreshIdle());
   [clipStartIn, clipEndIn].forEach(el => el.addEventListener("input", () => { if (!playing) updateTime(0); }));
   glowChk.addEventListener("change", () => { if (!playing) drawIdle(); });
   shuffleChk.addEventListener("change", () => {
@@ -1540,7 +1707,7 @@
     // if the current style is now out of scope, jump to an in-scope one immediately
     if (shuffleChk.checked && playing && !shufflePool().includes(styleSel.value)) shuffleStyle();
   });
-  drawIdle();
+  refreshIdle();
   if (!window.MediaRecorder) {
     outputEl.textContent = "This browser lacks MediaRecorder — recording is unavailable.";
     recordBtn.disabled = true;
