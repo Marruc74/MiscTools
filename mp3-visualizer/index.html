@@ -729,12 +729,12 @@
   function drawScene(style, elapsed) {
     const vertical = orientSel.value === "vertical";
     if (!bgImages.length) {
-      const hh = (tallFrame() && !vertical) ? Math.round(canvas.height / 2) : 0;
+      const hh = tallFrame() ? Math.round(canvas.height / 2) : 0;
       if (hh) {
         // visualizer → off-screen half-height buffer, composited at the bottom
         if (viz.width !== canvas.width || viz.height !== hh) { viz.width = canvas.width; viz.height = hh; firstFrame = true; }
         ctx = vizCtx; DW = canvas.width; DH = hh;
-        renderStyle(style);
+        if (vertical) renderRotated(style); else renderStyle(style);
         ctx = mainCtx; DW = canvas.width; DH = canvas.height;
         paintBackground();
         mainCtx.drawImage(viz, 0, canvas.height - hh);
@@ -857,8 +857,9 @@
 
   function vizRect() {
     const W = canvas.width, H = canvas.height, m = Math.round(Math.min(W, H) * 0.04);
-    if (placeSel.value === "bottom") { const h = Math.round(H * 0.30); return { x: m, y: H - h - m, w: W - 2*m, h }; }
-    const w = Math.round(W * 0.42), h = Math.round(H * 0.34);
+    const k = tallFrame() ? 0.5 : 1;   // halve the panel height on tall (9:16) frames
+    if (placeSel.value === "bottom") { const h = Math.round(H * 0.30 * k); return { x: m, y: H - h - m, w: W - 2*m, h }; }
+    const w = Math.round(W * 0.42), h = Math.round(H * 0.34 * k);
     switch (placeSel.value) {
       case "bl": return { x: m, y: H - h - m, w, h };
       case "tr": return { x: W - w - m, y: m, w, h };
