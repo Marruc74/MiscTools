@@ -722,9 +722,24 @@
     return { sw, h, left: { x: m, y: m, w: sw, h }, right: { x: W - m - sw, y: m, w: sw, h } };
   }
 
+  // Tall frames (e.g. vertical 9:16) make a full-height visualizer look stretched,
+  // so the no-image visualizer is rendered at half height, anchored to the bottom.
+  function tallFrame() { return canvas.height / canvas.width > 1.5; }
+
   function drawScene(style, elapsed) {
     const vertical = orientSel.value === "vertical";
     if (!bgImages.length) {
+      const hh = (tallFrame() && !vertical) ? Math.round(canvas.height / 2) : 0;
+      if (hh) {
+        // visualizer → off-screen half-height buffer, composited at the bottom
+        if (viz.width !== canvas.width || viz.height !== hh) { viz.width = canvas.width; viz.height = hh; firstFrame = true; }
+        ctx = vizCtx; DW = canvas.width; DH = hh;
+        renderStyle(style);
+        ctx = mainCtx; DW = canvas.width; DH = canvas.height;
+        paintBackground();
+        mainCtx.drawImage(viz, 0, canvas.height - hh);
+        return;
+      }
       ctx = mainCtx; DW = canvas.width; DH = canvas.height;
       if (vertical) renderRotated(style); else renderStyle(style);
       return;
