@@ -193,6 +193,15 @@
     </div>
 
     <div class="field">
+      <label for="orient">Orientation</label>
+      <select id="orient">
+        <option value="horizontal" selected>Horizontal (single panel)</option>
+        <option value="vertical">Vertical (rotated; beside a portrait image)</option>
+      </select>
+      <span class="hint">Vertical puts a rotated visualizer in each side gap when a tall (portrait) image is shown in a wide frame.</span>
+    </div>
+
+    <div class="field">
       <label>Color theme</label>
       <div class="swatches" id="swatches"></div>
     </div>
@@ -326,6 +335,7 @@
   let DW = canvas.width, DH = canvas.height; // current draw-target dimensions
   const fileInput = $("file"), drop = $("drop"), fileName = $("fileName");
   const styleSel = $("style"), resSel = $("res"), formatSel = $("format"), glowChk = $("glow"), shuffleChk = $("shuffle");
+  const orientSel = $("orient");
   const shuffleScopeField = $("shuffleScopeField"), shuffleScopeSel = $("shuffleScope");
   const bgBtn = $("bgBtn"), bgFile = $("bgFile"), bgList = $("bgList"), bgHint = $("bgHint"), bgSpread = $("bgSpread");
   const placeField = $("placeField"), placeSel = $("place");
@@ -410,6 +420,11 @@
     swatchWrap.appendChild(s);
   });
   styleSel.addEventListener("change", () => { if (!playing) drawIdle(); });
+  orientSel.addEventListener("change", () => {
+    firstFrame = true;
+    placeField.hidden = bgImages.length === 0 || orientSel.value === "vertical";
+    if (!playing) drawIdle();
+  });
 
   // ---- File loading ---------------------------------------------------------
   drop.addEventListener("click", () => fileInput.click());
@@ -610,12 +625,7 @@
   const TRAIL = { wave: 0.14, galaxy: 0.16, rings: 0.18, blob: 0.20, kaleido: 0.18, spiral: 0.16, enchanted: 0.12,
                   fairy: 0.13, crystal: 0.20, phoenix: 0.16, veil: 0.12, summon: 0.14 };
 
-  // Render one visualizer frame into the current draw target (ctx / DW / DH).
-  function renderStyle(style) {
-    const W = DW, H = DH;
-    if (style in TRAIL && !firstFrame) fade(TRAIL[style]);
-    else paintBackground();
-
+  function dispatchStyle(style, W, H) {
     switch (style) {
       case "bars":      return renderBars(W, H, false);
       case "mirror":    return renderBars(W, H, true);
@@ -642,22 +652,37 @@
     }
   }
 
+  // Paint the background (or motion-trail fade) and draw one style into the
+  // current draw target at its current DW/DH.
+  function paintAndDispatch(style) {
+    const W = DW, H = DH;
+    if (style in TRAIL && !firstFrame) fade(TRAIL[style]);
+    else paintBackground();
+    dispatchStyle(style, W, H);
+  }
+
+  // Render a style rotated 90° clockwise: rotate the context and swap DW/DH so
+  // every style renders into the swapped logical space and maps onto the
+  // physical region. Rotates all styles at once without touching the render fns.
+  function renderRotated(style) {
+    ctx.save();
+    ctx.translate(DW, 0);
+    ctx.rotate(Math.PI / 2);
+    const t = DW; DW = DH; DH = t; // logical dims are swapped while rotated
+    paintAndDispatch(style);
+    const u = DW; DW = DH; DH = u; // restore physical dims
+    ctx.restore();
+  }
+
+  // Render one visualizer frame into the current draw target (ctx / DW / DH).
+  function renderStyle(style) { paintAndDispatch(style); }
+
   // Compose a frame: full-frame background image + visualizer panel, or just
   // the full-canvas visualizer when no background is set.
-  function drawScene(style, elapsed) {
-    if (!bgImages.length) {
-      ctx = mainCtx; DW = canvas.width; DH = canvas.height;
-      renderStyle(style);
-      return;
-    }
-    const r = vizRect();
-    if (viz.width !== r.w || viz.height !== r.h) { viz.width = r.w; viz.height = r.h; firstFrame = true; }
-    // visualizer → off-screen panel
-    ctx = vizCtx; DW = r.w; DH = r.h;
-    renderStyle(style);
-    // composite onto the main canvas
-    ctx = mainCtx; DW = canvas.width; DH = canvas.height;
-    paintBgImages(mainCtx, elapsed, canvas.width, canvas.height);
+  // Composite a rendered visualizer panel (src) into rect r on the main canvas,
+  // with a rounded drop-shadowed frame. mirror flips it horizontally (used for
+  // the right-hand strip so the two sides mirror each other).
+  function compositePanel(r, src, mirror) {
     const rad = Math.round(Math.min(r.w, r.h) * 0.07);
     mainCtx.save();
     mainCtx.shadowColor = "rgba(0,0,0,0.45)"; mainCtx.shadowBlur = 26; mainCtx.shadowOffsetY = 10;
@@ -667,10 +692,65 @@
     mainCtx.save();
     roundPath(mainCtx, r.x, r.y, r.w, r.h, rad);
     mainCtx.clip();
-    mainCtx.drawImage(viz, r.x, r.y);
+    if (mirror) { mainCtx.translate(r.x + r.w, r.y); mainCtx.scale(-1, 1); mainCtx.drawImage(src, 0, 0); }
+    else mainCtx.drawImage(src, r.x, r.y);
     mainCtx.restore();
     roundPath(mainCtx, r.x, r.y, r.w, r.h, rad);
     mainCtx.lineWidth = 1.5; mainCtx.strokeStyle = "rgba(255,255,255,0.16)"; mainCtx.stroke();
+  }
+
+  // Width of each empty side gap when the current background image is a portrait
+  // letterboxed into a wider frame (matches drawCover's portrait branch). 0 when
+  // there's no gap (landscape/square/cover image or vertical/square frame).
+  function imageGap(elapsed) {
+    const f = currentBgFrame(elapsed);
+    if (!f) return 0;
+    const W = canvas.width, H = canvas.height;
+    const ir = f.cur.img.width / f.cur.img.height, cr = W / H;
+    if (ir < 1 && cr > 1) return (W - H * ir) / 2;
+    return 0;
+  }
+
+  // The two tall strips that sit in the side gaps beside a letterboxed portrait
+  // image (vertical orientation). null when the gap is too small to be useful.
+  function sideStrips(elapsed) {
+    const W = canvas.width, H = canvas.height, m = Math.round(Math.min(W, H) * 0.04);
+    const gap = imageGap(elapsed);
+    const sw = Math.round(gap - m - Math.round(m * 0.4));   // strip width inside the gap
+    if (sw < 28) return null;
+    const h = H - 2 * m;
+    return { sw, h, left: { x: m, y: m, w: sw, h }, right: { x: W - m - sw, y: m, w: sw, h } };
+  }
+
+  function drawScene(style, elapsed) {
+    const vertical = orientSel.value === "vertical";
+    if (!bgImages.length) {
+      ctx = mainCtx; DW = canvas.width; DH = canvas.height;
+      if (vertical) renderRotated(style); else renderStyle(style);
+      return;
+    }
+
+    // Vertical: two rotated strips, one in each side gap beside the image.
+    const strips = vertical ? sideStrips(elapsed) : null;
+    if (strips) {
+      if (viz.width !== strips.sw || viz.height !== strips.h) { viz.width = strips.sw; viz.height = strips.h; firstFrame = true; }
+      ctx = vizCtx; DW = strips.sw; DH = strips.h;
+      renderRotated(style);
+      ctx = mainCtx; DW = canvas.width; DH = canvas.height;
+      paintBgImages(mainCtx, elapsed, canvas.width, canvas.height);
+      compositePanel(strips.left, viz, false);
+      compositePanel(strips.right, viz, true);
+      return;
+    }
+
+    // Horizontal (or vertical with no usable side gap): single panel.
+    const r = vizRect();
+    if (viz.width !== r.w || viz.height !== r.h) { viz.width = r.w; viz.height = r.h; firstFrame = true; }
+    ctx = vizCtx; DW = r.w; DH = r.h;
+    if (vertical) renderRotated(style); else renderStyle(style);
+    ctx = mainCtx; DW = canvas.width; DH = canvas.height;
+    paintBgImages(mainCtx, elapsed, canvas.width, canvas.height);
+    compositePanel(r, viz, false);
   }
 
   // Draw the song title on top of the finished frame (main canvas).
@@ -1542,11 +1622,14 @@
         if (total > 0) bgElapsed = (performance.now() / 1000) % total;
       }
       paintBgImages(mainCtx, bgElapsed, W, H);
-      const r = vizRect();
-      const rad = Math.round(Math.min(r.w, r.h) * 0.07);
-      roundPath(mainCtx, r.x, r.y, r.w, r.h, rad);
-      mainCtx.fillStyle = "rgba(0,0,0,0.45)"; mainCtx.fill();
-      mainCtx.lineWidth = 1.5; mainCtx.strokeStyle = "rgba(255,255,255,0.16)"; mainCtx.stroke();
+      const strips = orientSel.value === "vertical" ? sideStrips(bgElapsed) : null;
+      const rects = strips ? [strips.left, strips.right] : [vizRect()];
+      for (const r of rects) {
+        const rad = Math.round(Math.min(r.w, r.h) * 0.07);
+        roundPath(mainCtx, r.x, r.y, r.w, r.h, rad);
+        mainCtx.fillStyle = "rgba(0,0,0,0.45)"; mainCtx.fill();
+        mainCtx.lineWidth = 1.5; mainCtx.strokeStyle = "rgba(255,255,255,0.16)"; mainCtx.stroke();
+      }
     } else {
       paintBackground();
     }
@@ -1641,7 +1724,7 @@
   }
 
   function syncBgUI() {
-    placeField.hidden = bgImages.length === 0;
+    placeField.hidden = bgImages.length === 0 || orientSel.value === "vertical";
     bgHint.hidden = bgImages.length === 0;
     updateBgSpread();
     renderBgList();
