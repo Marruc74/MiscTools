@@ -17,6 +17,12 @@ The pack's 100 prompts are really one set of building blocks — **locked charac
 
 Click **Load example** to populate the form with the pack's "The Secret of Ember Falls" cast and see a complete prompt, then edit from there. Or hit **🎲 Surprise me** to generate a fresh, coherent story every time — a themed title, moral, story goal, a random structure, and 2–3 locked characters with full visual locks that match the chosen genre. Keep clicking until something sparks, then fine-tune.
 
+### Randomize one section at a time
+
+If most of the story is right but one piece isn't, re-roll just that piece — the rest stays put. There's a small **🎲** next to **Title**, **Moral theme**, and **Story goal**, and one on each **character** row. The per-character dice keeps that character's kind (a person stays a person, a companion stays a companion) and a person's gender, and fits the current genre — so you can keep spinning a single cast member until they click while everyone else stays locked.
+
+Characters span any age: the main character is usually a child or teen, with a small chance of an adult or elderly lead, and supporting cast can be any age. Age drives height, the description ("boy" → "young woman" → "elderly man"), hair, and naming.
+
 ## Structures included
 
 Master Generator (one-line idea), then: Classic Numbered · Section Headers · Screenplay · Role-Play · Constraint-First · Chain-of-Thought · JSON-Style · Storyboard Panels · XML Tags (Claude-optimized) · Few-Shot Examples · Question-Driven · Bullet Minimalist · Cinematic Brief · Pixar Story Spine · Three-Act · Reverse Engineering · Multi-Turn Chained · Character POV Locked · Visual-First · Director's Commentary.

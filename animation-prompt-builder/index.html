@@ -68,6 +68,13 @@
 
   .field { display: flex; flex-direction: column; gap: 6px; }
   .field > label { font-size: 12px; color: var(--muted); }
+  .lblrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .lblrow label { font-size: 12px; color: var(--muted); }
+  .dice {
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
+    border-radius: 7px; padding: 1px 7px; font-size: 12px; line-height: 1.5; flex: none;
+  }
+  .dice:hover { border-color: var(--accent); color: var(--text); }
   .field .hint { font-size: 11.5px; color: var(--muted); opacity: .85; }
   select, button, input[type=text], input[type=number], textarea {
     font: inherit; color: var(--text);
@@ -146,7 +153,7 @@
     <div class="group">
       <h2>Story</h2>
       <div class="field">
-        <label for="title">Title</label>
+        <div class="lblrow"><label for="title">Title</label><button class="dice" id="rndTitle" type="button" title="Randomize title">🎲</button></div>
         <input type="text" id="title" placeholder='e.g. The Secret of Ember Falls' />
       </div>
       <div class="row">
@@ -166,12 +173,12 @@
           </select>
         </div>
         <div class="field">
-          <label for="moral">Moral theme</label>
+          <div class="lblrow"><label for="moral">Moral theme</label><button class="dice" id="rndMoral" type="button" title="Randomize moral">🎲</button></div>
           <input type="text" id="moral" placeholder="courage and teamwork" />
         </div>
       </div>
       <div class="field">
-        <label for="goal">Story goal / idea <span class="hint">— one or two lines; leave blank to let the AI invent it</span></label>
+        <div class="lblrow"><label for="goal">Story goal / idea <span class="hint">— leave blank to let the AI invent it</span></label><button class="dice" id="rndGoal" type="button" title="Randomize story goal">🎲</button></div>
         <textarea id="goal" placeholder="A girl, a boy, and a robot follow a glowing map to relight a magical waterfall."></textarea>
       </div>
     </div>
@@ -306,6 +313,8 @@ const HAIR_C = ["auburn", "chestnut", "sandy", "jet-black", "golden-blond", "cop
 const RIBBON = ["turquoise", "crimson", "violet", "yellow", "mint"];
 const EYES = ["hazel", "teal-green", "sky-blue", "warm brown", "amber", "gray", "green"];
 const SKIN = ["warm tan", "fair", "deep brown", "olive", "light brown"];
+const NAMES_M = ["Theo", "Mateo", "Arjun", "Liam", "Kai", "Hugo", "Felix", "Omar", "Leo", "Idris"];
+const NAMES_F = ["Mara", "Aria", "Lena", "Sofia", "Nina", "Iris", "Maya", "Zoe", "Priya", "Elena"];
 
 const COMPANIONS = {
   robot:  { noun: "robot", names: ["Robot Friend", "Bolt", "Gizmo", "Spark"], h: [38, 55], feat: ["chrome-cream egg-shaped body, two large cyan glowing eyes, orange antenna bulb, yellow heart chest light, stubby mitten arms, short rounded legs", "rounded silver body with rivets, big blue screen-eyes, a blinking chest panel, treaded wheels", "boxy copper body, one glowing green optic, a spring antenna, three-fingered claw hands"] },
@@ -329,7 +338,7 @@ const COMPANIONS = {
 const GENRES = {
   Adventure:   { roles: ["Explorer", "Adventure", "Trail", "Canyon"], outfits: ["moss-green explorer jacket, cream t-shirt, khaki cargo shorts, brown adventure boots", "sky-blue adventure vest, white blouse, denim shorts, tan ankle boots", "beige safari shirt with rolled sleeves, cargo pants, scuffed hiking boots"], acc: ["a leather satchel", "a glowing crystal compass on the backpack", "a coil of rope and a brass spyglass"], settings: ["misty forests", "swaying rope bridges", "hidden caves", "crumbling temple ruins", "golden canyons", "a jungle waterfall"], obj: ["find the lost heart of [Place]", "reach the hidden summit of [Place]", "recover the stolen [thing]"], comp: ["robot", "dragon", "fox"] },
   Mystery:     { roles: ["Detective", "Clue", "Riddle"], outfits: ["a tweed coat over a striped shirt, brown trousers, leather shoes", "a pink apron over a striped shirt, sneakers, a tiny notebook in the pocket"], acc: ["a magnifying glass on a cord", "a little notebook and a stubby pencil"], settings: ["foggy cobblestone streets", "a sleepy bakery", "an old clock tower", "a moonlit attic"], obj: ["solve the case of the missing [thing]", "uncover who rang the [thing]", "follow the trail of clues to [Place]"], comp: ["cat", "owl", "dog"] },
-  Magical:     { roles: ["Spell", "Star", "Moon", "Wish"], outfits: ["a star-patterned robe, soft slippers, a sparkling sash", "a lavender dress, white tights, mary-jane shoes, a glowing pendant"], acc: ["a little wooden wand", "a glowing pocket of fairy dust"], settings: ["an enchanted glade", "a floating castle", "a garden of glowing flowers", "a crystal cavern"], obj: ["break the gentle spell over [Place]", "restore the fading magic of [Place]", "find the last wish"], comp: ["dragon", "spirit", "fox"] },
+  Magical:     { roles: ["Spell", "Star", "Moon", "Wish"], outfits: ["a star-patterned robe, soft slippers, a sparkling sash", "a deep-violet hooded cloak over a tunic, soft boots, a crescent-moon pendant"], acc: ["a little wooden wand", "a glowing pocket of fairy dust"], settings: ["an enchanted glade", "a floating castle", "a garden of glowing flowers", "a crystal cavern"], obj: ["break the gentle spell over [Place]", "restore the fading magic of [Place]", "find the last wish"], comp: ["dragon", "spirit", "fox"] },
   Friendship:  { roles: ["Sunny", "Buddy", "Daisy"], outfits: ["a yellow raincoat, polka-dot boots, a friendship bracelet", "denim overalls, a striped tee, bright sneakers"], acc: ["a friendship bracelet", "a shared lunchbox of cookies"], settings: ["a cozy village", "a sunflower meadow", "a backyard treehouse", "a rainy playground"], obj: ["mend a broken friendship", "throw the perfect surprise party", "find a lost puppy"], comp: ["dog", "cat", "rabbit"] },
   Expedition:  { roles: ["Summit", "Frost", "Trekker", "Compass"], outfits: ["a red mountain jacket, black snow pants, climbing boots, an ice axe on the belt", "a fur-lined parka, goggles on the forehead, thick mittens, snow boots"], acc: ["an ice axe on the belt", "a coil of climbing rope and a compass"], settings: ["snowy ridges", "glacier caves", "windswept tundra", "a hidden valley"], obj: ["plant the flag on [Place]", "rescue a stranded cub", "map the unknown valley"], comp: ["goat", "fox", "owl"] },
   Educational: { roles: ["Curious", "Professor", "Sprout"], outfits: ["a lab coat over a bright tee, comfy trousers, sneakers, safety goggles", "a gardening smock, rubber boots, a sun hat"], acc: ["a notebook full of sketches", "a magnifying glass and a measuring tape"], settings: ["a busy science fair", "a tide pool", "a star observatory", "a seed-to-tree garden"], obj: ["discover how [thing] really works", "win the science fair kindly", "grow the impossible plant"], comp: ["robot", "owl", "rabbit"] },
@@ -339,16 +348,77 @@ const GENRES = {
   Bedtime:     { roles: ["Sleepy", "Dreamy", "Moon", "Star"], outfits: ["leaf-green pajamas with a fern print, fuzzy slipper-socks, a plush toy under the arm", "star-print pajamas, a soft robe, bunny slippers"], acc: ["a plush owl under the arm", "a tiny glowing nightlight"], settings: ["a hushed nighttime forest", "a cloud of soft stars", "a drowsy meadow", "a moonlit nursery"], obj: ["help the moon drift off to sleep", "gather the last sleepy yawns", "light the bedtime stars over [Place]"], comp: ["owl", "rabbit", "lamb", "cloud"] },
 };
 
-function makeHuman(genre, gender) {
+// Main character is usually a child/teen (≤19); small chance of adult or elderly.
+// Supporting humans span any age.
+function sampleAge(isMain) {
+  const r = Math.random();
+  if (isMain) {
+    if (r < 0.85) return randInt(5, 19);   // child / teen
+    if (r < 0.95) return randInt(20, 39);  // young adult
+    if (r < 0.99) return randInt(40, 64);  // adult
+    return randInt(65, 82);                // elderly
+  }
+  if (r < 0.45) return randInt(5, 19);
+  if (r < 0.78) return randInt(20, 45);
+  if (r < 0.95) return randInt(46, 69);
+  return randInt(70, 85);
+}
+
+function ageHeight(age) {
+  if (age <= 5) return randInt(100, 112);
+  if (age <= 8) return randInt(112, 126);
+  if (age <= 11) return randInt(126, 142);
+  if (age <= 14) return randInt(142, 160);
+  if (age <= 17) return randInt(156, 176);
+  if (age <= 19) return randInt(165, 182);
+  if (age <= 64) return randInt(160, 186);
+  return randInt(155, 178);
+}
+
+function personNoun(age, gender) {
+  const m = gender === "boy";
+  if (age <= 12) return m ? "boy" : "girl";
+  if (age <= 17) return m ? "teenage boy" : "teenage girl";
+  if (age <= 24) return m ? "young man" : "young woman";
+  if (age <= 59) return m ? "man" : "woman";
+  return m ? "elderly man" : "elderly woman";
+}
+
+function hairFor(age, gender) {
+  const c = pick(HAIR_C);
+  const gray = pick(["silver", "gray", "salt-and-pepper"]);
+  if (gender === "boy") {
+    if (age >= 55) return pick([`short ${gray} hair`, `thinning ${gray} hair`, `a balding head with a ${gray} fringe`]) + (chance(0.5) ? `, a neat ${gray} beard` : "");
+    if (age >= 25) return pick([`short ${c} hair`, `${c} hair swept back`, `${c} hair with light stubble`]);
+    return pick([`messy ${c} hair`, `${c} hair under a cap`, `short tousled ${c} hair`, `${c} hair with a stubborn cowlick`]);
+  }
+  if (age >= 55) return pick([`${gray} hair in a neat bun`, `short curled ${gray} hair`, `${gray} hair in a long braid`]);
+  if (age >= 25) return pick([`${c} hair in a low ponytail`, `shoulder-length ${c} hair`, `${c} hair in a tidy bun`]);
+  return pick([`${c} wavy hair in a half-ponytail with a ${pick(RIBBON)} ribbon`, `${c} hair in a long braid`, `${c} hair in twin buns`, `curly ${c} hair with a ${pick(RIBBON)} bow`]);
+}
+
+function faceFor(age) {
+  if (age <= 12) return "round cheeks, bright wide eyes";
+  if (age <= 19) return "a youthful face, lively eyes";
+  if (age <= 44) return "an athletic build, warm confident eyes";
+  if (age <= 64) return "a sturdy build, kind smile lines";
+  return "gentle wrinkles, twinkling eyes";
+}
+
+function humanName(role, age, gender) {
+  if (age <= 17) return `${role} ${gender === "boy" ? "Boy" : "Girl"}`;
+  return pick(gender === "boy" ? NAMES_M : NAMES_F);
+}
+
+function makeHuman(genre, gender, isMain) {
   const g = GENRES[genre];
   const role = pick(g.roles);
-  const name = `${role} ${gender === "boy" ? "Boy" : "Girl"}`;
-  const c = pick(HAIR_C);
-  const hair = gender === "boy"
-    ? pick([`messy ${c} hair`, `${c} hair under a cap`, `short tousled ${c} hair`, `${c} hair with a stubborn cowlick`])
-    : pick([`${c} wavy hair in a half-ponytail with a ${pick(RIBBON)} ribbon`, `${c} hair in a long braid`, `${c} hair in twin buns`, `curly ${c} hair with a ${pick(RIBBON)} bow`]);
-  const desc = `3D cartoon ${gender}, ${randInt(118, 130)}cm, ${hair}, ${pick(EYES)} eyes, ${pick(SKIN)} skin, ${pick(g.outfits)}, ${pick(g.acc)}`;
-  return { name, desc };
+  const age = sampleAge(isMain);
+  const noun = personNoun(age, gender);
+  const name = humanName(role, age, gender);
+  const desc = `3D cartoon ${noun}, age ${age}, ${ageHeight(age)}cm, ${hairFor(age, gender)}, ${pick(EYES)} eyes, ${pick(SKIN)} skin, ${faceFor(age)}, ${pick(g.outfits)}, ${pick(g.acc)}`;
+  const goalLabel = age <= 17 ? `${article(name)} ${name.toLowerCase()}` : `${article(noun)} ${noun} named ${name}`;
+  return { name, desc, goalLabel };
 }
 
 function makeCompanion(genre, usedTokens) {
@@ -359,10 +429,8 @@ function makeCompanion(genre, usedTokens) {
   let name = pick(c.names);
   if (usedTokens.has(token(name))) name = c.names.find(n => !usedTokens.has(token(n))) || name;
   const desc = `3D cartoon ${c.noun}, ${randInt(c.h[0], c.h[1])}cm, ${pick(c.feat)}`;
-  return { name, desc };
+  return { name, desc, goalLabel: `${article(c.noun)} ${c.noun}` };
 }
-
-function shortLabel(name) { const l = name.toLowerCase(); return `${article(l)} ${l}`; }
 
 function joinList(arr) {
   if (arr.length <= 1) return arr[0] || "";
@@ -370,9 +438,57 @@ function joinList(arr) {
   return `${arr.slice(0, -1).join(", ")}, and ${arr[arr.length - 1]}`;
 }
 
+const tok = (n) => (n || "").split(" ")[0].toLowerCase();
+const safeGenre = (g) => (g in GENRES ? g : "Adventure");
+
+function isHumanDesc(desc) {
+  return /3D cartoon (boy|girl|teenage boy|teenage girl|young man|young woman|man|woman|elderly man|elderly woman)\b/.test(desc || "");
+}
+function detectGender(desc) {
+  if (/3D cartoon (boy|teenage boy|young man|man|elderly man)\b/.test(desc || "")) return "boy";
+  if (/3D cartoon (girl|teenage girl|young woman|woman|elderly woman)\b/.test(desc || "")) return "girl";
+  return null;
+}
+function labelFor(c) {
+  return c.goalLabel || `${article(c.name || "character")} ${(c.name || "character").toLowerCase()}`;
+}
+
+/* Per-section generators */
+function randomTitle() {
+  const place = pick(PLACES), adj = pick(ADJ), noun = pick(NOUNS);
+  return pick([`The ${adj} ${noun}`, `The ${noun} of ${place}`, `${place}: The ${adj} ${noun}`, `The ${adj} ${noun} of ${place}`]);
+}
+
+function randomGoal(genre, chars, moral) {
+  const g = GENRES[safeGenre(genre)];
+  const place = pick(PLACES);
+  const objective = pick(g.obj).replace("[Place]", place).replace("[thing]", pick(NOUNS).toLowerCase());
+  const s = g.settings.slice(), picks = [];
+  for (let i = 0; i < 3 && s.length; i++) picks.push(s.splice(Math.floor(Math.random() * s.length), 1)[0]);
+  const cast = joinList((chars || []).map(labelFor)) || "Our heroes";
+  return `${cap(cast)} ${pick(["journey", "set off", "venture"])} through ${joinList(picks)} to ${objective} — discovering ${moral || "the heart of the story"} along the way.`;
+}
+
+/* Re-roll a single character row, preserving its kind (person vs companion)
+   and — for people — their gender, while keeping names unique. */
+function rerollCharacter(i) {
+  const cur = state.characters[i] || { name: "", desc: "" };
+  const genre = safeGenre(state.genre);
+  const used = new Set(state.characters.filter((_, j) => j !== i).map(c => tok(c.name)));
+  const companion = cur.desc && !isHumanDesc(cur.desc); // default to person when unknown/empty
+  let c;
+  if (companion) {
+    c = makeCompanion(genre, used);
+  } else {
+    const gender = detectGender(cur.desc) || (chance(0.5) ? "boy" : "girl");
+    let guard = 0;
+    do { c = makeHuman(genre, gender, i === 0); } while (used.has(tok(c.name)) && guard++ < 8);
+  }
+  state.characters[i] = c;
+}
+
 function randomStory() {
   const genre = pick(Object.keys(GENRES));
-  const g = GENRES[genre];
   const moral = pick(MORALS);
 
   // cast: 2–3 characters, always at least one human and one companion
@@ -380,12 +496,11 @@ function randomStory() {
   const humans = total === 2 ? 1 : (chance(0.75) ? 2 : 1);
   const chars = [];
   const tokens = new Set();
-  const tok = (n) => n.split(" ")[0].toLowerCase();
   let gender = chance(0.5) ? "boy" : "girl";
   for (let i = 0; i < humans; i++) {
-    let h = makeHuman(genre, gender);
+    let h = makeHuman(genre, gender, i === 0);
     let guard = 0;
-    while (tokens.has(tok(h.name)) && guard++ < 8) h = makeHuman(genre, gender);
+    while (tokens.has(tok(h.name)) && guard++ < 8) h = makeHuman(genre, gender, i === 0);
     tokens.add(tok(h.name)); chars.push(h);
     gender = gender === "boy" ? "girl" : "boy";
   }
@@ -394,19 +509,8 @@ function randomStory() {
     tokens.add(tok(c.name)); chars.push(c);
   }
 
-  // title
-  const place = pick(PLACES);
-  const adj = pick(ADJ), noun = pick(NOUNS);
-  const title = pick([`The ${adj} ${noun}`, `The ${noun} of ${place}`, `${place}: The ${adj} ${noun}`, `The ${adj} ${noun} of ${place}`]);
-
-  // story goal
-  const objective = pick(g.obj).replace("[Place]", place).replace("[thing]", pick(NOUNS).toLowerCase());
-  const s = g.settings.slice();
-  const picks = [];
-  for (let i = 0; i < 3 && s.length; i++) picks.push(s.splice(Math.floor(Math.random() * s.length), 1)[0]);
-  const cast = joinList(chars.map(c => shortLabel(c.name)));
-  const goal = `${cap(cast)} ${pick(["journey", "set off", "venture"])} through ${joinList(picks)} to ${objective} — discovering ${moral} along the way.`;
-
+  const title = randomTitle();
+  const goal = randomGoal(genre, chars, moral);
   const structure = pick(STRUCTURES.filter(x => x.id !== "master").map(x => x.id));
   return { title, genre, moral, goal, characters: chars, structure };
 }
@@ -771,6 +875,7 @@ function renderChars() {
       <div class="chead">
         <span class="badge">LOCKED</span>
         <input type="text" class="cname" placeholder="Name (e.g. Explorer Girl)" />
+        <button class="dice croll" title="Randomize this character" type="button">🎲</button>
         <button class="x" title="Remove" type="button">✕</button>
       </div>
       <textarea class="cdesc" placeholder='Visual lock — "3D cartoon girl, 122cm, auburn hair…, teal eyes, sky-blue vest, denim shorts, glowing compass"'></textarea>`;
@@ -778,6 +883,7 @@ function renderChars() {
     row.querySelector(".cdesc").value = c.desc || "";
     row.querySelector(".cname").addEventListener("input", e => { c.name = e.target.value; render(); });
     row.querySelector(".cdesc").addEventListener("input", e => { c.desc = e.target.value; render(); });
+    row.querySelector(".croll").addEventListener("click", () => { rerollCharacter(i); renderChars(); render(); });
     row.querySelector(".x").addEventListener("click", () => {
       state.characters.splice(i, 1);
       if (state.characters.length === 0) state.characters.push({ name: "", desc: "" });
@@ -857,6 +963,13 @@ function init() {
     state.characters = r.characters.map(c => ({ ...c }));
     state.structure = r.structure;
     syncInputsFromState(); renderChars(); render();
+  });
+
+  $("rndTitle").addEventListener("click", () => { state.title = randomTitle(); $("title").value = state.title; render(); });
+  $("rndMoral").addEventListener("click", () => { state.moral = pick(MORALS); $("moral").value = state.moral; render(); });
+  $("rndGoal").addEventListener("click", () => {
+    state.goal = randomGoal(state.genre, state.characters.filter(c => (c.name || c.desc || "").trim()), state.moral);
+    $("goal").value = state.goal; render();
   });
 
   $("loadExample").addEventListener("click", () => {
