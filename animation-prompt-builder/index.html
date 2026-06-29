@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Animation Prompt Builder</title>
+<style>
+  :root {
+    --bg: #07070d;
+    --panel: #11121c;
+    --panel-2: #181a28;
+    --line: #262838;
+    --text: #e9eaf6;
+    --muted: #8b8da8;
+    --accent: #6c7bff;
+    --accent-2: #ff5b9e;
+    --good: #41d6a0;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background:
+      radial-gradient(1200px 700px at 80% -10%, rgba(108,123,255,0.18), transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, rgba(255,91,158,0.14), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+  header {
+    padding: 22px 28px 14px;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 19px; margin: 0; letter-spacing: -0.01em; font-weight: 650; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  header .spacer { flex: 1; }
+  header .toplinks { display: flex; gap: 8px; }
+
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 20px;
+    padding: 0 28px 28px;
+    min-height: 0;
+  }
+  @media (max-width: 960px) { main { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+  .controls { display: flex; flex-direction: column; gap: 16px; align-self: start; }
+
+  .group { display: flex; flex-direction: column; gap: 12px; }
+  .group > h2 {
+    font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em;
+    margin: 0; padding-bottom: 6px; border-bottom: 1px solid var(--line); font-weight: 600;
+  }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field > label { font-size: 12px; color: var(--muted); }
+  .field .hint { font-size: 11.5px; color: var(--muted); opacity: .85; }
+  select, button, input[type=text], input[type=number], textarea {
+    font: inherit; color: var(--text);
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 9px; padding: 9px 11px;
+  }
+  button { cursor: pointer; }
+  select, input[type=text], input[type=number], textarea { width: 100%; }
+  textarea { resize: vertical; min-height: 58px; line-height: 1.45; }
+  select:focus, button:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; min-width: 0; }
+
+  .char {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .char .chead { display: flex; align-items: center; gap: 8px; }
+  .char .chead .badge { font-size: 11px; color: var(--accent); font-weight: 600; white-space: nowrap; }
+  .char .chead input { flex: 1; }
+  .char .x { border: none; background: transparent; color: var(--muted); font-size: 16px; padding: 2px 6px; flex: none; }
+  .char .x:hover { color: #ff5b6b; }
+
+  button.add {
+    border: 1px dashed var(--line); background: rgba(255,255,255,.02); color: var(--muted);
+    padding: 8px; width: 100%;
+  }
+  button.add:hover { border-color: var(--accent); color: var(--text); }
+
+  .btnrow { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btnrow button { flex: 1; }
+  button.ghost { background: var(--panel-2); }
+  button.ghost:hover { border-color: var(--accent); }
+  button.primary {
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    border: none; font-weight: 600; color: #fff;
+  }
+
+  /* Output side */
+  .stage { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .outbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .outbar .meta { color: var(--muted); font-size: 12.5px; }
+  .outbar .spacer { flex: 1; }
+  .structnote {
+    background: rgba(108,123,255,0.08); border: 1px solid rgba(108,123,255,0.25);
+    border-radius: 10px; padding: 10px 12px; font-size: 13px; color: var(--text);
+  }
+  .structnote b { color: var(--accent); }
+  pre.output {
+    flex: 1; margin: 0; min-height: 360px;
+    background: #0c0d15; border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+    font: 13.5px/1.6 "SFMono-Regular", ui-monospace, "Cascadia Code", Consolas, monospace;
+    color: #cfd2ee;
+  }
+  pre.output.placeholder { color: var(--muted); }
+  .copied { color: var(--good) !important; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>AI Animation Prompt Builder</h1>
+  <span class="sub">Fill the template → get a paste-ready story prompt in any of 20 structures</span>
+  <span class="spacer"></span>
+  <span class="toplinks">
+    <button class="ghost" id="randomize" type="button">🎲 Surprise me</button>
+    <button class="ghost" id="loadExample" type="button">Load example</button>
+    <button class="ghost" id="clearAll" type="button">Clear</button>
+  </span>
+</header>
+
+<main>
+  <section class="panel controls">
+    <div class="group">
+      <h2>Story</h2>
+      <div class="field">
+        <label for="title">Title</label>
+        <input type="text" id="title" placeholder='e.g. The Secret of Ember Falls' />
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="genre">Genre</label>
+          <select id="genre">
+            <option>Adventure</option>
+            <option>Mystery</option>
+            <option>Magical</option>
+            <option>Friendship</option>
+            <option>Expedition</option>
+            <option>Educational</option>
+            <option>Animal</option>
+            <option>Sci-Fi</option>
+            <option>Underwater</option>
+            <option>Bedtime</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="moral">Moral theme</label>
+          <input type="text" id="moral" placeholder="courage and teamwork" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="goal">Story goal / idea <span class="hint">— one or two lines; leave blank to let the AI invent it</span></label>
+        <textarea id="goal" placeholder="A girl, a boy, and a robot follow a glowing map to relight a magical waterfall."></textarea>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Locked characters</h2>
+      <div id="charList" class="group" style="gap:8px"></div>
+      <button class="add" id="addChar" type="button">+ Add character</button>
+    </div>
+
+    <div class="group">
+      <h2>Format</h2>
+      <div class="field">
+        <label for="structure">Prompt structure</label>
+        <select id="structure"></select>
+        <div class="hint" id="structDesc"></div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Scenes</label>
+          <div class="row">
+            <input type="number" id="sceneMin" min="1" value="16" />
+            <input type="number" id="sceneMax" min="1" value="20" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Dialogue lines</label>
+          <div class="row">
+            <input type="number" id="dlgMin" min="1" value="10" />
+            <input type="number" id="dlgMax" min="1" value="12" />
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="runtime">Runtime (min)</label>
+          <input type="number" id="runtime" min="1" value="15" />
+        </div>
+        <div class="field">
+          <label for="aspect">Aspect ratio</label>
+          <select id="aspect">
+            <option>16:9</option>
+            <option>9:16</option>
+            <option>1:1</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="audience">Audience</label>
+        <input type="text" id="audience" value="family-friendly, ages 4–10" />
+      </div>
+      <div class="field">
+        <label for="style">Style anchor</label>
+        <input type="text" id="style" value="3D cartoon, Pixar style" />
+      </div>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="outbar">
+      <div class="structnote" id="structnote"></div>
+      <span class="spacer"></span>
+      <span class="meta" id="count"></span>
+      <button class="ghost" id="download" type="button">Download .txt</button>
+      <button class="primary" id="copy" type="button">Copy prompt</button>
+    </div>
+    <pre class="output" id="output"></pre>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+/* ---- The 20 structures from the pack, plus the Master Generator ---- */
+const STRUCTURES = [
+  { id: "master",     name: "Master Generator (one-line idea)", desc: "The reusable generic prompt — type a one-line idea and the AI invents everything in the standard format." },
+  { id: "classic",    name: "01 · Classic Numbered",   desc: "One dense, flowing instruction paragraph. The workhorse format." },
+  { id: "sections",   name: "02 · Section Headers",    desc: "Clean markdown ## sections — easy for the model to follow and for you to skim." },
+  { id: "screenplay", name: "03 · Screenplay Format",  desc: "Title card + screenplay conventions. Feels like a real script." },
+  { id: "roleplay",   name: "04 · Role-Play Prompt",   desc: "Casts the AI as a studio director you've hired. Great for confident, opinionated output." },
+  { id: "constraint", name: "05 · Constraint-First",   desc: "MUST INCLUDE / MUST AVOID / OUTPUT FORMAT — maximum control over what you get." },
+  { id: "cot",        name: "06 · Chain-of-Thought",   desc: "Step-by-step plan before the final script. Better arcs, less drift." },
+  { id: "json",       name: "07 · JSON-Style",         desc: "A JSON spec the model fills in. Most machine-precise; good for batching." },
+  { id: "storyboard", name: "08 · Storyboard Panels",  desc: "PANEL-by-PANEL layout — reads like a real storyboard." },
+  { id: "xml",        name: "09 · XML Tags (Claude-optimized)", desc: "Tagged sections. Claude follows XML structure especially well." },
+  { id: "fewshot",    name: "10 · Few-Shot Examples",  desc: "Shows one worked example, then asks for the same shape. Most consistent formatting." },
+  { id: "questions",  name: "11 · Question-Driven",    desc: "Q&A scaffold (Q1/A1…). The model answers its way to a full script." },
+  { id: "bullet",     name: "12 · Bullet Minimalist",  desc: "Tight bullets, minimal prose. Fast to edit, token-light." },
+  { id: "brief",      name: "13 · Cinematic Brief",    desc: "A production brief with cast, runtime, deliverables. Very professional." },
+  { id: "spine",      name: "14 · Pixar Story Spine",  desc: "Once upon a time… / Until one day… / Because of that… — proven emotional arc." },
+  { id: "threeact",   name: "15 · Three-Act Structure",desc: "Setup / Confrontation / Resolution across the scenes." },
+  { id: "reverse",    name: "16 · Reverse Engineering",desc: "Designs the ending first, then works backward. Tight, purposeful stories." },
+  { id: "multiturn",  name: "17 · Multi-Turn Chained", desc: "Three phases: lock characters → architecture → full scenes." },
+  { id: "pov",        name: "18 · Character POV Locked",desc: "Told entirely through one character's eyes, with inner monologue." },
+  { id: "visual",     name: "19 · Visual-First",       desc: "Builds the whole story around one striking hero shot." },
+  { id: "director",   name: "20 · Director's Commentary", desc: "Every section comes with a 'why' note, like a DVD commentary." },
+];
+
+const EXAMPLE = {
+  title: "The Secret of Ember Falls",
+  genre: "Adventure",
+  moral: "courage and teamwork",
+  goal: "Three friends find a glowing map in Grandpa's journal and journey through misty forests, rope bridges, and temple ruins to relight the lost heart of Ember Falls.",
+  characters: [
+    { name: "Adventure Boy", desc: "3D cartoon boy, 128cm, messy chestnut hair, hazel eyes, moss-green explorer jacket, cream t-shirt, khaki cargo shorts, brown adventure boots, leather satchel, red wrist bandana" },
+    { name: "Explorer Girl", desc: "3D cartoon girl, 122cm, auburn wavy hair in half-ponytail with turquoise ribbon, teal-green eyes, freckles, sky-blue adventure vest, white blouse, denim shorts, tan ankle boots, glowing crystal compass on backpack" },
+    { name: "Robot Friend", desc: "3D cartoon robot, 45cm, chrome-cream egg-shaped body, two large cyan glowing eyes, orange antenna bulb, yellow heart chest light, two stubby arms with mitten hands, two short rounded legs" },
+  ],
+};
+
+/* ---------------- randomizer ---------------- */
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+const chance = (p) => Math.random() < p;
+const randInt = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const article = (w) => (/^[aeiou]/i.test(w) ? "an" : "a");
+
+const MORALS = [
+  "courage and teamwork", "perseverance and trust", "honesty and kindness",
+  "patience and growth", "friendship and bravery", "curiosity and wonder",
+  "responsibility and hope", "respect for nature", "believing in yourself",
+  "sharing and generosity", "harmony and self-expression", "memory and family",
+];
+const ADJ = ["Secret", "Hidden", "Lost", "Glowing", "Singing", "Last", "Forgotten",
+  "Whispering", "Golden", "Starlit", "Brave", "Wandering"];
+const NOUNS = ["Falls", "Garden", "Map", "Lighthouse", "Mountain", "Library", "Bay",
+  "Forest", "Island", "Bell", "Music Box", "Reef", "Comet", "Meadow", "Bridge", "Lantern"];
+const PLACES = ["Ember Falls", "Sunpeak", "Wishing Bay", "Greenveil", "Moonhollow",
+  "Starfall", "Crystal Cove", "Frostpeak", "Coral City", "Dreamwood"];
+
+const HAIR_C = ["auburn", "chestnut", "sandy", "jet-black", "golden-blond", "copper", "dark-brown", "silver-gray", "ginger"];
+const RIBBON = ["turquoise", "crimson", "violet", "yellow", "mint"];
+const EYES = ["hazel", "teal-green", "sky-blue", "warm brown", "amber", "gray", "green"];
+const SKIN = ["warm tan", "fair", "deep brown", "olive", "light brown"];
+
+const COMPANIONS = {
+  robot:  { noun: "robot", names: ["Robot Friend", "Bolt", "Gizmo", "Spark"], h: [38, 55], feat: ["chrome-cream egg-shaped body, two large cyan glowing eyes, orange antenna bulb, yellow heart chest light, stubby mitten arms, short rounded legs", "rounded silver body with rivets, big blue screen-eyes, a blinking chest panel, treaded wheels", "boxy copper body, one glowing green optic, a spring antenna, three-fingered claw hands"] },
+  dragon: { noun: "tiny dragon", names: ["Tiny Dragon", "Ember", "Pip"], h: [40, 55], feat: ["mint-green scales, small orange wings, big amber eyes, a cute snout, tiny golden horns", "ruby-red scales, stubby wings, big golden eyes, smoking nostrils, a tiny crown of horns"] },
+  fox:    { noun: "fox", names: ["Sky Fox", "Rusty", "Fennec"], h: [32, 50], feat: ["orange fur with a white-tipped tail, big amber eyes, a tiny travel scarf", "silver fur with cloud-white wings, big amber eyes, a fluffy cloud-tipped tail"] },
+  owl:    { noun: "owl", names: ["Storm Owl", "Hoot", "Sage"], h: [35, 60], feat: ["silver-gray feathers, big amber eyes, a tiny lightning bolt on the chest", "fluffy brown feathers, huge round eyes, little round reading glasses"] },
+  cat:    { noun: "cat", names: ["Cat Helper", "Mittens", "Shadow"], h: [28, 38], feat: ["gray fur with white paws, big green eyes, a tiny detective bowtie", "orange tabby fur, big yellow eyes, a tiny explorer cap"] },
+  dog:    { noun: "puppy", names: ["Scout", "Biscuit", "Pip"], h: [30, 45], feat: ["golden retriever puppy, fluffy yellow fur, brown eyes, a red collar", "spotted beagle puppy, floppy ears, brown eyes, a blue bandana"] },
+  deer:   { noun: "spirit deer", names: ["Spirit Deer", "Fawn", "Glimmer"], h: [70, 95], feat: ["soft white fur with glowing markings, large gentle eyes, antlers strung with tiny lights"] },
+  goat:   { noun: "baby goat", names: ["Mountain Goat", "Nibbles", "Cliff"], h: [45, 60], feat: ["white fluffy fur, big blue eyes, tiny golden horns, a friendly face"] },
+  dolphin:{ noun: "dolphin", names: ["Splash", "Echo", "Finn"], h: [60, 90], feat: ["smooth blue-gray skin, sparkling eyes, a playful grin, a tiny shell charm"] },
+  turtle: { noun: "sea turtle", names: ["Shelby", "Coral", "Tide"], h: [40, 60], feat: ["a green shell with golden swirl patterns, wise kind eyes, a tiny barnacle friend"] },
+  mermaid:{ noun: "little mermaid", names: ["Pearl", "Marina", "Coralie"], h: [55, 75], feat: ["a shimmering teal tail, flowing seafoam hair, big violet eyes, a pearl necklace"] },
+  alien:  { noun: "friendly alien", names: ["Zip", "Nova", "Blip"], h: [35, 55], feat: ["a round lavender body, three blinking eyes, tiny antennae, a glowing belly, a friendly grin"] },
+  rabbit: { noun: "bunny", names: ["Clover", "Pippin", "Hazel"], h: [28, 42], feat: ["soft cream fur, long floppy ears, a pink nose, a tiny flower behind one ear"] },
+  spirit: { noun: "gentle spirit", names: ["Wisp", "Lumen", "Aura"], h: [40, 55], feat: ["a translucent pale-blue figure, flowing wispy hair, a soft glow, a gentle smile"] },
+  cloud:  { noun: "cloud sprite", names: ["Nimbus", "Puff", "Drift"], h: [30, 45], feat: ["a fluffy white cloud body, sleepy half-closed eyes, a tiny crescent-moon charm"] },
+  lamb:   { noun: "lamb", names: ["Woolly", "Dot", "Cuddle"], h: [35, 50], feat: ["fluffy white wool, droopy sleepy eyes, a tiny bell on a ribbon"] },
+};
+
+const GENRES = {
+  Adventure:   { roles: ["Explorer", "Adventure", "Trail", "Canyon"], outfits: ["moss-green explorer jacket, cream t-shirt, khaki cargo shorts, brown adventure boots", "sky-blue adventure vest, white blouse, denim shorts, tan ankle boots", "beige safari shirt with rolled sleeves, cargo pants, scuffed hiking boots"], acc: ["a leather satchel", "a glowing crystal compass on the backpack", "a coil of rope and a brass spyglass"], settings: ["misty forests", "swaying rope bridges", "hidden caves", "crumbling temple ruins", "golden canyons", "a jungle waterfall"], obj: ["find the lost heart of [Place]", "reach the hidden summit of [Place]", "recover the stolen [thing]"], comp: ["robot", "dragon", "fox"] },
+  Mystery:     { roles: ["Detective", "Clue", "Riddle"], outfits: ["a tweed coat over a striped shirt, brown trousers, leather shoes", "a pink apron over a striped shirt, sneakers, a tiny notebook in the pocket"], acc: ["a magnifying glass on a cord", "a little notebook and a stubby pencil"], settings: ["foggy cobblestone streets", "a sleepy bakery", "an old clock tower", "a moonlit attic"], obj: ["solve the case of the missing [thing]", "uncover who rang the [thing]", "follow the trail of clues to [Place]"], comp: ["cat", "owl", "dog"] },
+  Magical:     { roles: ["Spell", "Star", "Moon", "Wish"], outfits: ["a star-patterned robe, soft slippers, a sparkling sash", "a lavender dress, white tights, mary-jane shoes, a glowing pendant"], acc: ["a little wooden wand", "a glowing pocket of fairy dust"], settings: ["an enchanted glade", "a floating castle", "a garden of glowing flowers", "a crystal cavern"], obj: ["break the gentle spell over [Place]", "restore the fading magic of [Place]", "find the last wish"], comp: ["dragon", "spirit", "fox"] },
+  Friendship:  { roles: ["Sunny", "Buddy", "Daisy"], outfits: ["a yellow raincoat, polka-dot boots, a friendship bracelet", "denim overalls, a striped tee, bright sneakers"], acc: ["a friendship bracelet", "a shared lunchbox of cookies"], settings: ["a cozy village", "a sunflower meadow", "a backyard treehouse", "a rainy playground"], obj: ["mend a broken friendship", "throw the perfect surprise party", "find a lost puppy"], comp: ["dog", "cat", "rabbit"] },
+  Expedition:  { roles: ["Summit", "Frost", "Trekker", "Compass"], outfits: ["a red mountain jacket, black snow pants, climbing boots, an ice axe on the belt", "a fur-lined parka, goggles on the forehead, thick mittens, snow boots"], acc: ["an ice axe on the belt", "a coil of climbing rope and a compass"], settings: ["snowy ridges", "glacier caves", "windswept tundra", "a hidden valley"], obj: ["plant the flag on [Place]", "rescue a stranded cub", "map the unknown valley"], comp: ["goat", "fox", "owl"] },
+  Educational: { roles: ["Curious", "Professor", "Sprout"], outfits: ["a lab coat over a bright tee, comfy trousers, sneakers, safety goggles", "a gardening smock, rubber boots, a sun hat"], acc: ["a notebook full of sketches", "a magnifying glass and a measuring tape"], settings: ["a busy science fair", "a tide pool", "a star observatory", "a seed-to-tree garden"], obj: ["discover how [thing] really works", "win the science fair kindly", "grow the impossible plant"], comp: ["robot", "owl", "rabbit"] },
+  Animal:      { roles: ["Ranger", "Meadow", "River"], outfits: ["a khaki ranger shirt, shorts, sturdy boots, a wide-brim hat", "a green field vest, rolled jeans, rubber boots"], acc: ["a pair of binoculars", "a satchel of seeds and a wooden whistle"], settings: ["a green meadow", "a winding river", "a tall savanna", "a quiet woodland"], obj: ["guide the lost fawn home", "save the drying watering hole", "find the rare songbird"], comp: ["fox", "deer", "rabbit"] },
+  "Sci-Fi":    { roles: ["Star", "Nova", "Astro", "Pilot"], outfits: ["a sleek white-and-teal spacesuit, magnetic boots, a glowing visor", "an orange flight suit, a utility belt, antigravity sneakers"], acc: ["a holographic wrist-map", "a little floating drone companion"], settings: ["a gleaming space station", "a candy-colored alien moon", "an asteroid garden", "a starship bridge"], obj: ["repair the wandering satellite", "befriend the shy alien", "find the way home to [Place]"], comp: ["robot", "alien", "fox"] },
+  Underwater:  { roles: ["Coral", "Pearl", "Tide", "Diver"], outfits: ["a teal wetsuit with fin-stripes, a clear dive mask, flippers", "a coral-pink swimsuit, a shell belt, a glowing seashell lantern"], acc: ["a glowing seashell lantern", "a net pouch of sea treasures"], settings: ["a coral city", "a sunken ship", "a swaying kelp forest", "a glowing deep trench"], obj: ["restore the dimming reef of [Place]", "return the lost pearl", "find the singing whale"], comp: ["dolphin", "turtle", "mermaid"] },
+  Bedtime:     { roles: ["Sleepy", "Dreamy", "Moon", "Star"], outfits: ["leaf-green pajamas with a fern print, fuzzy slipper-socks, a plush toy under the arm", "star-print pajamas, a soft robe, bunny slippers"], acc: ["a plush owl under the arm", "a tiny glowing nightlight"], settings: ["a hushed nighttime forest", "a cloud of soft stars", "a drowsy meadow", "a moonlit nursery"], obj: ["help the moon drift off to sleep", "gather the last sleepy yawns", "light the bedtime stars over [Place]"], comp: ["owl", "rabbit", "lamb", "cloud"] },
+};
+
+function makeHuman(genre, gender) {
+  const g = GENRES[genre];
+  const role = pick(g.roles);
+  const name = `${role} ${gender === "boy" ? "Boy" : "Girl"}`;
+  const c = pick(HAIR_C);
+  const hair = gender === "boy"
+    ? pick([`messy ${c} hair`, `${c} hair under a cap`, `short tousled ${c} hair`, `${c} hair with a stubborn cowlick`])
+    : pick([`${c} wavy hair in a half-ponytail with a ${pick(RIBBON)} ribbon`, `${c} hair in a long braid`, `${c} hair in twin buns`, `curly ${c} hair with a ${pick(RIBBON)} bow`]);
+  const desc = `3D cartoon ${gender}, ${randInt(118, 130)}cm, ${hair}, ${pick(EYES)} eyes, ${pick(SKIN)} skin, ${pick(g.outfits)}, ${pick(g.acc)}`;
+  return { name, desc };
+}
+
+function makeCompanion(genre, usedTokens) {
+  const g = GENRES[genre];
+  const key = pick(g.comp.length ? g.comp : Object.keys(COMPANIONS));
+  const c = COMPANIONS[key];
+  const token = (n) => n.split(" ")[0].toLowerCase();
+  let name = pick(c.names);
+  if (usedTokens.has(token(name))) name = c.names.find(n => !usedTokens.has(token(n))) || name;
+  const desc = `3D cartoon ${c.noun}, ${randInt(c.h[0], c.h[1])}cm, ${pick(c.feat)}`;
+  return { name, desc };
+}
+
+function shortLabel(name) { const l = name.toLowerCase(); return `${article(l)} ${l}`; }
+
+function joinList(arr) {
+  if (arr.length <= 1) return arr[0] || "";
+  if (arr.length === 2) return `${arr[0]} and ${arr[1]}`;
+  return `${arr.slice(0, -1).join(", ")}, and ${arr[arr.length - 1]}`;
+}
+
+function randomStory() {
+  const genre = pick(Object.keys(GENRES));
+  const g = GENRES[genre];
+  const moral = pick(MORALS);
+
+  // cast: 2–3 characters, always at least one human and one companion
+  const total = pick([2, 2, 3, 3, 3]);
+  const humans = total === 2 ? 1 : (chance(0.75) ? 2 : 1);
+  const chars = [];
+  const tokens = new Set();
+  const tok = (n) => n.split(" ")[0].toLowerCase();
+  let gender = chance(0.5) ? "boy" : "girl";
+  for (let i = 0; i < humans; i++) {
+    let h = makeHuman(genre, gender);
+    let guard = 0;
+    while (tokens.has(tok(h.name)) && guard++ < 8) h = makeHuman(genre, gender);
+    tokens.add(tok(h.name)); chars.push(h);
+    gender = gender === "boy" ? "girl" : "boy";
+  }
+  for (let i = 0; i < total - humans; i++) {
+    const c = makeCompanion(genre, tokens);
+    tokens.add(tok(c.name)); chars.push(c);
+  }
+
+  // title
+  const place = pick(PLACES);
+  const adj = pick(ADJ), noun = pick(NOUNS);
+  const title = pick([`The ${adj} ${noun}`, `The ${noun} of ${place}`, `${place}: The ${adj} ${noun}`, `The ${adj} ${noun} of ${place}`]);
+
+  // story goal
+  const objective = pick(g.obj).replace("[Place]", place).replace("[thing]", pick(NOUNS).toLowerCase());
+  const s = g.settings.slice();
+  const picks = [];
+  for (let i = 0; i < 3 && s.length; i++) picks.push(s.splice(Math.floor(Math.random() * s.length), 1)[0]);
+  const cast = joinList(chars.map(c => shortLabel(c.name)));
+  const goal = `${cap(cast)} ${pick(["journey", "set off", "venture"])} through ${joinList(picks)} to ${objective} — discovering ${moral} along the way.`;
+
+  const structure = pick(STRUCTURES.filter(x => x.id !== "master").map(x => x.id));
+  return { title, genre, moral, goal, characters: chars, structure };
+}
+
+/* ---------------- state ---------------- */
+const state = {
+  title: "", genre: "Adventure", moral: "", goal: "",
+  characters: [],
+  structure: "classic",
+  sceneMin: 16, sceneMax: 20, dlgMin: 10, dlgMax: 12,
+  runtime: 15, aspect: "16:9",
+  audience: "family-friendly, ages 4–10", style: "3D cartoon, Pixar style",
+};
+
+const $ = (id) => document.getElementById(id);
+const SAVE_KEY = "anim-prompt-builder-v1";
+
+/* ---------------- shared prompt pieces ---------------- */
+function pieces() {
+  const s = state;
+  const chars = s.characters.filter(c => (c.name || "").trim() || (c.desc || "").trim());
+  const names = chars.map(c => "LOCKED " + (c.name || "Character").trim());
+  const lockNames = names.join(" + ");
+  const lockPhrase = `Use ${lockNames} exactly as defined above (no changes).`;
+  const style = (s.style || "3D cartoon, Pixar style").trim();
+  const aspect = s.aspect;
+  const scenes = `${s.sceneMin}–${s.sceneMax} scenes`;
+  const dlg = `${s.dlgMin}–${s.dlgMax}`;
+  const moral = (s.moral || "the heart of the story").trim();
+  const title = (s.title || "Untitled Story").trim();
+
+  const lockedList = chars.map((c, i) =>
+    `(${i + 1}) LOCKED ${(c.name || "Character").trim()}: "${(c.desc || "").trim()}"`).join(" ");
+  const lockedListNL = chars.map((c, i) =>
+    `(${i + 1}) LOCKED ${(c.name || "Character").trim()}: "${(c.desc || "").trim()}"`).join("\n");
+
+  const expanded = `FIRST — Generate a separate, fully detailed character generation prompt for each LOCKED character (${lockNames}). Each character description above is the visual lock — but you must EXPAND each into a detailed 3–4 paragraph character generation prompt for image generation. Each expanded character prompt should include: face details (eye shape, expression, skin tone), hair texture and styling, clothing fabric/texture/exact colors with hex codes if relevant, accessories with materials, body proportions, signature pose, lighting preference (warm/cool/golden), and ${style} animation style anchors. Output these expanded character prompts AS A SEPARATE BLOCK before the scene-by-scene breakdown so they can be used to generate the character sheet first.`;
+
+  const dialogueInstr = `Create a Dialogue Map of ${dlg} short, natural dialogue lines that drive the story from beginning to end. Each line should reveal emotion or move the plot forward.`;
+
+  const goalText = (s.goal || "").trim()
+    ? (s.goal || "").trim()
+    : `A warm, adventurous 2–3 sentence premise describing the journey, the obstacle, and the emotional core of the story (moral: ${moral}).`;
+
+  const t2i = `TEXT-TO-IMAGE PROMPT: camera angle (wide/medium/close-up/low/high), cinematic lighting, ${aspect} aspect ratio, ${style} environment, professional composition, rich environmental detail, consistent character design, vibrant family-friendly mood, ${style} animation style. ALWAYS start with: "${lockPhrase}"`;
+
+  const i2v = `IMAGE-TO-VIDEO PROMPT specifying BOTH camera angle (wide/medium/close-up/low/high/over-the-shoulder) AND camera movement (pan/dolly/tilt/crane/orbit/tracking/push-in/pull-out), character actions, environment motion (wind, leaves, particles, water, mist, light rays), the relevant dialogue line from the Dialogue Map, an ambient sound cue, and ${aspect} output.`;
+
+  const constraints = `Avoid horror, violence, scary faces, and adult content. Maintain strict character consistency across every scene. Keep the adventure visually varied, bright, magical, and suitable for children and families.`;
+
+  return { s, chars, names, lockNames, lockPhrase, style, aspect, scenes, dlg, moral, title,
+           lockedList, lockedListNL, expanded, dialogueInstr, goalText, t2i, i2v, constraints };
+}
+
+/* ---------------- structure renderers ---------------- */
+const RENDER = {
+  master(p) {
+    const idea = (p.s.goal || "").trim() || "[YOUR ONE-LINE STORY IDEA HERE]";
+    return [
+`You are an expert AI animation story writer. I will give you a one-line story idea, and you will generate a complete, family-friendly, highly detailed ${p.style} animation story script (at least ${p.s.runtime} minutes long, ${p.scenes}) in this EXACT structure:`,
+`1) LOCKED CHARACTERS — Generate 2 to 4 detailed ${p.style} character prompts. Each must include: exact height in cm, appearance, hair, eyes, skin tone, clothing, color palette, personality, age-appropriate design, and expressive but family-friendly facial features. Label each character clearly as "LOCKED [Name] ([height]cm)". Do NOT repeat full character descriptions later.`,
+`2) STORY GOAL — A warm paragraph describing the journey, the obstacle, and the emotional core of the story.`,
+`3) DIALOGUE MAP — ${p.dlg} short, natural dialogue lines that drive the story from beginning to end.`,
+`4) SCENES (${p.scenes}) — For each scene include: scene number and short title; a 1-sentence beat summary; a ${p.t2i.replace(/^TEXT-TO-IMAGE PROMPT: /,'Text-to-Image prompt with ')}; and an ${p.i2v.replace(/^IMAGE-TO-VIDEO PROMPT /,'Image-to-Video prompt ')}`,
+`5) ENDING — Close with a clear, simple moral about ${p.moral}.`,
+`Rules:\n- ${p.constraints.split('. ').filter(Boolean).join('.\n- ')}`,
+`Now here is my story idea — generate the full script in the format above:\n\n${idea}`,
+    ].join("\n\n");
+  },
+
+  classic(p) {
+    return `Write a complete family-friendly highly detailed ${p.style} animation story script (at least ${p.s.runtime} minutes long) titled "${p.title}". ${p.expanded} The locked character definitions are: ${p.lockedList} Keep these sizes, designs, clothing, and color palettes strictly consistent across all scenes (no scale or design changes). Then write the STORY GOAL: ${p.goalText} Then ${p.dialogueInstr} Then present the story scene-by-scene (${p.scenes}) using visual storytelling in ${p.aspect}. For each scene, include: scene number and title, a 1-sentence beat summary, one ${p.t2i} and one ${p.i2v} Every scene MUST start with: "${p.lockPhrase}" Ensure the animation feels studio-quality, cinematic, and professional, with strict character consistency throughout. ${p.constraints} End with a clear moral about ${p.moral}.`;
+  },
+
+  sections(p) {
+    return [
+`Generate a complete ${p.s.runtime}-minute family-friendly ${p.style} animation script titled "${p.title}" formatted with clear markdown section headers.`,
+`## LOCKED CHARACTERS\n${p.lockedListNL}\nKeep these visual descriptions, scales, and color palettes strictly consistent across every scene.`,
+`## EXPANDED CHARACTER PROMPTS\n${p.expanded}`,
+`## STORY GOAL\n${p.goalText}`,
+`## DIALOGUE MAP\nWrite ${p.dlg} short, natural dialogue lines that drive the story from beginning to end.`,
+`## SCENES (${p.scenes})\nFor each scene:\n### Scene [number]: [title]\n- **Beat:** one-sentence emotional beat\n- **Text-to-Image:** camera angle, cinematic lighting, ${p.aspect}, ${p.style} animation style, consistent character design\n- **Image-to-Video:** ${p.i2v}\n- **Lock recall:** start with "${p.lockPhrase}"`,
+`## CONSTRAINTS\n${p.constraints}`,
+`## ENDING\nClose with a clear moral about ${p.moral}.`,
+    ].join("\n\n");
+  },
+
+  screenplay(p) {
+    return [
+`Write a complete ${p.s.runtime}-minute family-friendly ${p.style} animation script titled "${p.title.toUpperCase()}" in proper screenplay format.`,
+`TITLE CARD — LOCKED CHARACTERS:\n${p.lockedListNL}\nThese descriptions must remain identical across every scene.`,
+`CHARACTER GENERATION: ${p.expanded}`,
+`LOGLINE / STORY GOAL: ${p.goalText}`,
+`DIALOGUE MAP: ${p.dialogueInstr}`,
+`SCENES (${p.scenes}) — Write each scene as a screenplay slug + action:\nSCENE [#] — [TITLE]\nINT./EXT. LOCATION — TIME\nBEAT: one sentence.\nACTION: blocking and staging.\nDIALOGUE: character cues with the matching Dialogue Map line.\nTEXT-TO-IMAGE: camera angle, cinematic lighting, ${p.aspect}, ${p.style} animation style.\nIMAGE-TO-VIDEO: ${p.i2v}\nOpen every scene with: "${p.lockPhrase}"`,
+`FADE OUT on a clear moral about ${p.moral}. ${p.constraints}`,
+    ].join("\n\n");
+  },
+
+  roleplay(p) {
+    return `You are an award-winning ${p.style} animation director and children's story writer at a top studio. I'm hiring you to write a complete ${p.s.runtime}-minute family-friendly animated short titled "${p.title}" for an audience of ${p.s.audience}. Stay fully in character as the director — confident, warm, and specific.\n\nFirst, lock the cast (no design changes ever): ${p.lockedList}\n\n${p.expanded}\n\nThen pitch the STORY GOAL: ${p.goalText}\n\nThen write the DIALOGUE MAP: ${p.dialogueInstr}\n\nThen direct the film scene-by-scene (${p.scenes}). For each scene give the scene number and title, a one-sentence beat, one ${p.t2i} and one ${p.i2v} Open every scene with: "${p.lockPhrase}"\n\nWrap with a clear moral about ${p.moral}. ${p.constraints}`;
+  },
+
+  constraint(p) {
+    return [
+`Generate a complete ${p.s.runtime}-minute family-friendly ${p.style} animation script titled "${p.title}".`,
+`MUST INCLUDE:\n- LOCKED character descriptions: ${p.lockedList}\n- EXPANDED character generation prompts (${p.expanded})\n- Story Goal: ${p.goalText}\n- Dialogue Map: ${p.dlg} short, natural dialogue lines\n- ${p.scenes} with: number, title, beat, Text-to-Image prompt, Image-to-Video prompt\n- Every scene starts: "${p.lockPhrase}"\n- ${p.aspect} composition with cinematic camera angles\n- ${p.i2v}\n- Atmospheric environment motion in every shot\n- Clear closing moral about ${p.moral}`,
+`MUST AVOID:\n- Horror, violence, scary faces, adult content\n- Character description drift between scenes\n- Generic or vague visual descriptions\n- Output that omits either the Text-to-Image OR the Image-to-Video prompt per scene`,
+`OUTPUT FORMAT:\n1. Locked Characters block (once)\n2. Expanded Character Generation Prompts (separate block)\n3. Story Goal (2–3 sentences)\n4. Dialogue Map (numbered list)\n5. Scenes 1 through ${p.s.sceneMax} (each fully structured)\n6. Moral statement`,
+`STYLE: ${p.style}, vibrant, family-friendly.`,
+    ].join("\n\n");
+  },
+
+  cot(p) {
+    return [
+`I'm going to ask you to write a complete ${p.s.runtime}-minute family-friendly ${p.style} animation script titled "${p.title}". Before writing the final script, work through it step by step. Show your reasoning briefly at each step, then deliver the complete script.`,
+`STEP 1 — Think about the moral first. The story should leave viewers feeling ${p.moral}.`,
+`STEP 2 — Lock the characters with exact precision: ${p.lockedList}`,
+`STEP 3 — ${p.expanded}`,
+`STEP 4 — Plan the Story Goal in 2–3 sentences: ${p.goalText}`,
+`STEP 5 — Write the Dialogue Map: ${p.dlg} short, natural dialogue lines.`,
+`STEP 6 — Structure ${p.scenes} that pace the emotional arc.`,
+`STEP 7 — Write each scene fully:\n- Scene number and title\n- One-sentence emotional beat\n- Text-to-Image prompt (camera angle, cinematic lighting, ${p.aspect}, ${p.style})\n- ${p.i2v}\n- Every scene starts: "${p.lockPhrase}"`,
+`STEP 8 — End with the moral about ${p.moral}, stated simply. ${p.constraints}`,
+    ].join("\n\n");
+  },
+
+  json(p) {
+    const obj = {
+      title: p.title,
+      format: `${p.style} animation`,
+      runtime_minutes: Number(p.s.runtime) || 15,
+      audience: p.s.audience,
+      characters_locked: p.chars.map(c => ({ label: "LOCKED " + (c.name || "Character").trim(), description: (c.desc || "").trim() })),
+      character_expansion_required: true,
+      expanded_character_prompts_instruction: "Generate detailed 3–4 paragraph character generation prompts for each LOCKED character, with face details, hair, clothing texture/color, accessories, body proportions, signature pose, and lighting preference.",
+      scene_count_range: [Number(p.s.sceneMin) || 16, Number(p.s.sceneMax) || 20],
+      story_goal: (p.s.goal || "").trim() || "2–3 sentence premise; write this.",
+      moral: p.moral,
+      constraints: { no_horror: true, no_violence: true, no_scary_faces: true, aspect_ratio: p.aspect, character_lock_phrase: p.lockPhrase },
+      dialogue_map: `${p.dlg} natural lines`,
+      output_per_scene: {
+        scene_number: "integer",
+        scene_title: "string",
+        emotional_beat: "1-sentence string",
+        text_to_image_prompt: `camera angle (wide/medium/close-up/low/high), lighting, ${p.aspect}, ${p.style}, consistent character design`,
+        image_to_video_prompt: `BOTH camera angle AND camera movement (pan/dolly/tilt/crane/orbit/tracking), actions, environment motion, dialogue line, ambient sound, ${p.aspect}`,
+      },
+    };
+    return `Generate a complete ${p.s.runtime}-minute family-friendly ${p.style} animation script titled "${p.title}" structured as if it were a JSON specification. INPUT SPECIFICATION (treat this as schema):\n\n${JSON.stringify(obj, null, 2)}\n\nNow generate the actual script following this specification exactly. Every field must be fulfilled.`;
+  },
+
+  storyboard(p) {
+    return [
+`Generate a complete ${p.s.runtime}-minute family-friendly ${p.style} animation script titled "${p.title}" formatted as a visual storyboard.`,
+`START WITH — LOCKED CHARACTERS (visual designs that lock for every panel):\n${p.lockedListNL}`,
+`EXPANDED CHARACTER PROMPTS: ${p.expanded}`,
+`STORY GOAL: ${p.goalText}`,
+`DIALOGUE MAP (${p.dlg} lines): list them numbered.`,
+`THEN PRESENT ${p.scenes} AS STORYBOARD PANELS:\nPANEL [#]\n- TITLE: [short scene title]\n- BEAT: [one-sentence emotional beat]\n- IMAGE PROMPT: camera angle, environment, cinematic lighting, ${p.aspect}, ${p.style}\n- MOTION PROMPT: ${p.i2v}\n- DIALOGUE: the line from the Dialogue Map for this panel\n- LOCK: ${p.lockPhrase}\n...continue through every panel...`,
+`ENDING PANEL:\n- MORAL: a clear, simple statement about ${p.moral}\nStyle: cinematic ${p.style} storyboard, family-friendly, vibrant. ${p.constraints}`,
+    ].join("\n\n");
+  },
+
+  xml(p) {
+    const charsXml = p.chars.map(c =>
+      `    <character label="LOCKED ${(c.name||'Character').trim()}">${(c.desc||'').trim()}</character>`).join("\n");
+    return [
+`<task>`,
+`  <role>Expert ${p.style} animation story writer.</role>`,
+`  <goal>Write a complete ${p.s.runtime}-minute family-friendly animation script titled "${p.title}" for ${p.s.audience}.</goal>`,
+`  <locked_characters note="keep visuals identical across all scenes">\n${charsXml}\n  </locked_characters>`,
+`  <expanded_character_prompts>${p.expanded}</expanded_character_prompts>`,
+`  <story_goal>${p.goalText}</story_goal>`,
+`  <dialogue_map>${p.dlg} short, natural dialogue lines that drive the story from beginning to end.</dialogue_map>`,
+`  <scenes count="${p.scenes}">`,
+`    <scene_format>`,
+`      <number_and_title/>`,
+`      <beat>one sentence</beat>`,
+`      <text_to_image>camera angle, cinematic lighting, ${p.aspect}, ${p.style}, consistent character design</text_to_image>`,
+`      <image_to_video>${p.i2v}</image_to_video>`,
+`      <lock>${p.lockPhrase}</lock>`,
+`    </scene_format>`,
+`  </scenes>`,
+`  <constraints>${p.constraints}</constraints>`,
+`  <ending>Close with a clear, simple moral about ${p.moral}.</ending>`,
+`</task>`,
+    ].join("\n");
+  },
+
+  fewshot(p) {
+    return [
+`I'll show you an example of the output format I want, then ask you to generate a new script.`,
+`EXAMPLE OUTPUT FORMAT:\nLOCKED CHARACTERS:\n(1) LOCKED Example Boy: "3D cartoon boy, 125cm, brown hair, blue eyes, blue jacket, jeans, sneakers"\n(2) LOCKED Example Dog: "3D cartoon golden retriever puppy, 40cm, fluffy yellow fur, brown eyes, red collar"\nEXPANDED CHARACTER PROMPTS:\nExample Boy: [3–4 paragraph detailed character generation prompt]\nExample Dog: [same depth]\nSTORY GOAL: A boy and his dog rescue a kitten, learning kindness.\nDIALOGUE MAP: 1. "Look up there!" 2. "Don't worry little one, we'll help." [continue ${p.dlg} lines]\nSCENE 1: The Discovery\nBeat: The boy spots a kitten on a high branch.\nText-to-Image: wide low-angle shot, suburban park, golden hour, ${p.aspect}, ${p.style}.\nImage-to-Video: medium tracking shot following the boy, slow tilt-up to the kitten, leaves rustling, kitten meows. Dialogue: "Look up there!" Ambient: park birds. ${p.aspect}. Use LOCKED Example Boy + LOCKED Example Dog exactly as defined above (no changes).\n[continue through every scene]\nMORAL: Helping others is its own reward.`,
+`------`,
+`NOW GENERATE A SIMILAR SCRIPT for "${p.title}":\nLOCKED CHARACTERS (use these exactly, don't change them):\n${p.lockedListNL}\n${p.expanded}\nSTORY GOAL: ${p.goalText}\nDIALOGUE MAP: ${p.dlg} natural lines.\nSCENES: ${p.scenes}, each with number, title, beat, Text-to-Image, and Image-to-Video (${p.i2v}). Start every scene with "${p.lockPhrase}". Moral lands on ${p.moral}. ${p.constraints}`,
+    ].join("\n\n");
+  },
+
+  questions(p) {
+    return [
+`We're going to write a complete ${p.s.runtime}-minute family-friendly ${p.style} animation script titled "${p.title}" by answering a series of questions in order.`,
+`Q1: Who are the LOCKED characters?\nA1: ${p.lockedList} (these descriptions stay identical across every scene)`,
+`Q2: What are the EXPANDED character generation prompts?\nA2: ${p.expanded}`,
+`Q3: What is the Story Goal in 2–3 sentences?\nA3: ${p.goalText}`,
+`Q4: What is the Dialogue Map (${p.dlg} short natural lines)?\nA4: [list them numbered]`,
+`Q5: How do we open the story (Scene 1)?\nA5: Scene 1: [title]; Beat: [1 sentence]; Text-to-Image: camera angle, lighting, ${p.aspect}, ${p.style}; Image-to-Video: ${p.i2v} Always start with: "${p.lockPhrase}"`,
+`Q6 through the final scene: continue writing each remaining scene in the same Q&A format (${p.scenes} total).`,
+`Q (final): What is the moral?\nA: a clear, simple statement about ${p.moral}.`,
+`Constraints: ${p.constraints}`,
+    ].join("\n\n");
+  },
+
+  bullet(p) {
+    return [
+`Generate complete ${p.s.runtime}-min family ${p.style} script titled "${p.title}".`,
+`• Characters (lock all scenes): ${p.chars.map(c=>`LOCKED ${(c.name||'Character').trim()}: ${(c.desc||'').trim()}`).join("; ")}`,
+`• Expand characters: ${p.expanded}`,
+`• Length: ${p.scenes}, ~${p.s.runtime} minutes`,
+`• Style: ${p.style}, cinematic, ${p.aspect}`,
+`• Audience: ${p.s.audience}`,
+`• Tone: wondrous, emotional, no horror/violence`,
+`• Story Goal: ${p.goalText}`,
+`• Dialogue Map: ${p.dlg} lines`,
+`• Moral: ${p.moral}`,
+`Per scene output:\n• # and title\n• 1-line beat\n• T2I prompt (camera angle, lighting, ${p.aspect}, ${p.style})\n• I2V prompt (${p.i2v})\n• Start every scene: "${p.lockPhrase}"`,
+`Closing line: state the moral. Go.`,
+    ].join("\n");
+  },
+
+  brief(p) {
+    return [
+`=== PRODUCTION BRIEF ===`,
+`TITLE: ${p.title}\nFORMAT: ${p.style} animation\nGENRE: Family ${p.s.genre.toLowerCase()}\nRUNTIME: ${p.s.runtime} minutes\nAUDIENCE: ${p.s.audience}\nTONE: wondrous, emotional, uplifting\nASPECT RATIO: ${p.aspect}\nMORAL: ${p.moral}`,
+`CAST (LOCKED — no design changes):\n${p.lockedListNL}`,
+`PRODUCER NOTES:\n- ${p.scenes} total\n- Cinematic camera language throughout\n- Atmospheric environment motion in every shot\n- Character consistency is non-negotiable\n- Every scene opens with: "${p.lockPhrase}"`,
+`DELIVERABLES REQUESTED:\n(1) EXPANDED CHARACTER GENERATION PROMPTS — ${p.expanded}\n(2) STORY GOAL — ${p.goalText}\n(3) DIALOGUE MAP — ${p.dlg} numbered lines driving the story\n(4) SCENE BREAKDOWN — for each scene: number and title; emotional beat (1 sentence); Text-to-Image prompt (camera angle, lighting, ${p.aspect}, ${p.style}); Image-to-Video prompt (${p.i2v})\n(5) MORAL STATEMENT — closing line`,
+`CONTENT FLAGS: ${p.constraints}\nDELIVER THE COMPLETE SCRIPT.`,
+    ].join("\n\n");
+  },
+
+  spine(p) {
+    return [
+`Generate a complete ${p.s.runtime}-minute family-friendly ${p.style} animation script titled "${p.title}" structured around the classic Pixar Story Spine.`,
+`LOCKED CHARACTERS (keep visuals identical across all scenes):\n${p.lockedListNL}`,
+`EXPANDED CHARACTER PROMPTS: ${p.expanded}`,
+`STORY SPINE:\n> "Once upon a time…" — set up the world and the characters' normal life\n> "Every day…" — establish the routine and small joys\n> "Until one day…" — the inciting incident\n> "Because of that…" — the first consequence\n> "Because of that…" — the second consequence, raising stakes\n> "Because of that…" — the third consequence, deepening the journey\n> "Until finally…" — the climax and resolution\n> "Ever since then…" — the new normal, moral landing on ${p.moral}`,
+`Story Goal seed: ${p.goalText}`,
+`Include a ${p.dlg}-line DIALOGUE MAP between the spine and the scenes.`,
+`Now expand the spine into ${p.scenes}, fully written. Each scene includes:\n- Scene number and title\n- 1-sentence emotional beat\n- Text-to-Image prompt (camera angle, cinematic lighting, ${p.aspect}, ${p.style})\n- ${p.i2v}\n- Open every scene with: "${p.lockPhrase}"`,
+`Constraints: ${p.constraints}`,
+    ].join("\n\n");
+  },
+
+  threeact(p) {
+    return [
+`Generate a complete ${p.s.runtime}-minute family-friendly ${p.style} animation script titled "${p.title}" using classic Three-Act Structure.`,
+`LOCKED CHARACTERS:\n${p.lockedListNL}`,
+`EXPANDED CHARACTER PROMPTS: ${p.expanded}`,
+`STORY GOAL: ${p.goalText}`,
+`ACT ONE — SETUP: introduce the world, the characters' ordinary life, and the inciting incident. End Act 1 on a "point of no return."\nACT TWO — CONFRONTATION: escalating obstacles, deepening emotional stakes, a midpoint reversal, the lowest moment, then gathering courage.\nACT THREE — RESOLUTION: climactic confrontation, the moral choice, and a new emotional truth. Land on the moral of ${p.moral}.`,
+`For each of the ${p.scenes}, provide:\n- Scene number, act label, and title\n- 1-sentence emotional beat\n- Text-to-Image prompt (camera angle, cinematic lighting, ${p.aspect}, ${p.style})\n- ${p.i2v}\n- Open every scene with: "${p.lockPhrase}"`,
+`Also include a ${p.dlg}-line Dialogue Map. Closing line: state the moral. ${p.constraints}`,
+    ].join("\n\n");
+  },
+
+  reverse(p) {
+    return [
+`We're going to write "${p.title}" — but we're going to work BACKWARD from the ending.`,
+`STEP 1 — THE FINAL FRAME: the story must END on ${p.moral}. Design the final scene first and write it in full (beat + Text-to-Image + Image-to-Video).`,
+`STEP 2 — THE CLIMAX BEFORE: what single decision earns the ending? Write that scene fully.`,
+`STEP 3 — THE LOWEST MOMENT: the darkest moment before the climax (still family-friendly). Write it fully.`,
+`STEP 4 — THE MIDPOINT TRANSFORMATION: what shift changes the characters? Write it fully.`,
+`STEP 5 — THE INCITING INCIDENT: what event starts the journey? Write it fully.`,
+`STEP 6 — THE OPENING IMAGE: design Scene 1 so it visually rhymes with the closing scene.`,
+`STEP 7 — FILL IN THE GAPS: generate the remaining scenes (${p.scenes} total), maintaining pacing.`,
+`LOCKED CHARACTERS:\n${p.lockedListNL}\nEXPANDED CHARACTER PROMPTS: ${p.expanded}\nStory Goal seed: ${p.goalText}`,
+`Every scene opens with "${p.lockPhrase}" and includes number, title, beat, Text-to-Image prompt (${p.aspect}, ${p.style}), and Image-to-Video prompt (${p.i2v}). Also include a ${p.dlg}-line Dialogue Map. ${p.constraints}`,
+    ].join("\n\n");
+  },
+
+  multiturn(p) {
+    return [
+`I want you to generate the script for "${p.title}" in three distinct phases. Produce all three in your response.`,
+`=== PHASE 1: CHARACTER DESIGN ===\nLock the visual designs. These cannot change across any scene.\nCHARACTERS TO LOCK:\n${p.lockedListNL}\nEXPAND THE LOCKED CHARACTERS: ${p.expanded}\nConfirm by writing: "CHARACTERS LOCKED AND EXPANDED."`,
+`=== PHASE 2: STORY ARCHITECTURE ===\nOutput:\n1. STORY GOAL (2–3 sentences): ${p.goalText}\n2. DIALOGUE MAP (${p.dlg} short natural lines)\n3. SCENE OUTLINE (titles and one-sentence beats for ${p.scenes} — no full prompts yet)`,
+`=== PHASE 3: FULL SCENE GENERATION ===\nNow expand each scene into production-ready format:\n- Scene number and title\n- Emotional beat (1 sentence)\n- Text-to-Image prompt (camera angle, cinematic lighting, ${p.aspect}, ${p.style})\n- ${p.i2v}\n- Start every scene: "${p.lockPhrase}"\nEnd with a clear, simple moral about ${p.moral}.`,
+`CONSTRAINTS: ${p.constraints}`,
+    ].join("\n\n");
+  },
+
+  pov(p) {
+    const pov = (p.chars[0] && p.chars[0].name) ? p.chars[0].name.trim() : "the lead character";
+    return [
+`Generate a script for "${p.title}" written entirely from the point of view of ${pov}.`,
+`LOCKED CHARACTERS:\n${p.lockedListNL}`,
+`EXPANDED CHARACTER PROMPTS: ${p.expanded}`,
+`POV CHARACTER: ${pov}. Throughout the script:\n- Use ${pov}'s inner voice in narration\n- Show other characters through their eyes\n- Let visual descriptions reflect what THEY see\n- Their emotional journey IS the story`,
+`Output:\n1. STORY GOAL (2–3 sentences, framed from the POV character's desire): ${p.goalText}\n2. DIALOGUE MAP (${p.dlg} lines — include internal thoughts from POV)\n3. ${p.scenes}, each with:\n   - Scene number and title\n   - Beat (1 sentence, framed from POV)\n   - Inner monologue from ${pov} (1–2 sentences)\n   - Text-to-Image prompt (camera angle, cinematic lighting, ${p.aspect}, ${p.style})\n   - ${p.i2v}\n   - Open with: "${p.lockPhrase}"\n4. CLOSING — ${pov}'s final reflection landing on the moral of ${p.moral}`,
+`${p.constraints}`,
+    ].join("\n\n");
+  },
+
+  visual(p) {
+    return [
+`Generate the script for "${p.title}" by building the story around a single striking opening image.`,
+`STEP 1 — DESIGN THE HERO SHOT: write the most cinematically striking image possible for the opening. Full Text-to-Image prompt: camera angle, lighting, environment, ${p.aspect}, ${p.style}. Movie-poster quality.`,
+`STEP 2 — REVERSE-ENGINEER THE STORY.\nLOCKED CHARACTERS (use these exact descriptions):\n${p.lockedListNL}\nEXPANDED CHARACTER PROMPTS: ${p.expanded}\nWhat is the story that LEADS UP TO this image, or unfolds AFTER it?\n- 2–3 sentence Story Goal: ${p.goalText}\n- ${p.dlg}-line Dialogue Map`,
+`STEP 3 — STRUCTURE ${p.scenes}. Each scene includes:\n- Scene number and title\n- 1-sentence beat\n- Text-to-Image prompt (camera angle, lighting, ${p.aspect}, ${p.style}, consistent character design)\n- ${p.i2v}\n- Open every scene with: "${p.lockPhrase}"\nThe opening hero shot should be Scene 1 or echo throughout.`,
+`STEP 4 — LAND THE MORAL: close on ${p.moral}. Constraints: ${p.constraints}`,
+    ].join("\n\n");
+  },
+
+  director(p) {
+    return [
+`Generate the script for "${p.title}" — AND explain the creative reasoning behind each major choice, as if recording director's commentary.`,
+`LOCKED CHARACTERS:\n${p.lockedListNL}`,
+`EXPANDED CHARACTER PROMPTS: ${p.expanded}`,
+`OUTPUT FORMAT — for EACH section, provide both content AND a brief "Director's Note":\n> EXPANDED CHARACTER PROMPTS (per character)\n  Content: [3–4 paragraph generation prompt]  Director's Note: [why these visual choices?]\n> STORY GOAL\n  Content: ${p.goalText}  Director's Note: [why this premise?]\n> DIALOGUE MAP\n  Content: [${p.dlg} lines]  Director's Note: [what does this reveal?]\n> EACH SCENE (${p.scenes})\n  - Scene number and title\n  - Beat (1 sentence)\n  - Text-to-Image prompt (camera angle, cinematic lighting, ${p.aspect}, ${p.style})\n  - Image-to-Video prompt (${p.i2v})\n  - "${p.lockPhrase}"\n  - Director's Note: [why this scene? why this camera choice?]\n> MORAL\n  Content: [single sentence about ${p.moral}]  Director's Note: [why this moral lands here]`,
+`Tone: confident director — warm, specific, opinionated. ${p.constraints}`,
+    ].join("\n\n");
+  },
+};
+
+/* ---------------- build + render ---------------- */
+function buildPrompt() {
+  const p = pieces();
+  const fn = RENDER[state.structure] || RENDER.classic;
+  return fn(p);
+}
+
+function needsChars() { return state.structure !== "master"; }
+
+function render() {
+  const out = $("output");
+  const hasChars = state.characters.some(c => (c.desc || "").trim());
+  if (needsChars() && !state.title.trim() && !hasChars) {
+    out.classList.add("placeholder");
+    out.textContent = "Fill in a title and at least one locked character on the left — your paste-ready prompt appears here.\n\nTip: click “Load example” up top to see a complete prompt, then tweak it.";
+    $("count").textContent = "";
+  } else {
+    out.classList.remove("placeholder");
+    const text = buildPrompt();
+    out.textContent = text;
+    const words = (text.trim().match(/\S+/g) || []).length;
+    $("count").textContent = `${words.toLocaleString()} words · ${text.length.toLocaleString()} chars`;
+  }
+  const st = STRUCTURES.find(s => s.id === state.structure);
+  $("structnote").innerHTML = st ? `<b>${st.name}</b> — ${st.desc}` : "";
+  $("structDesc").textContent = st ? st.desc : "";
+  save();
+}
+
+/* ---------------- character rows ---------------- */
+function renderChars() {
+  const list = $("charList");
+  list.innerHTML = "";
+  state.characters.forEach((c, i) => {
+    const row = document.createElement("div");
+    row.className = "char";
+    row.innerHTML = `
+      <div class="chead">
+        <span class="badge">LOCKED</span>
+        <input type="text" class="cname" placeholder="Name (e.g. Explorer Girl)" />
+        <button class="x" title="Remove" type="button">✕</button>
+      </div>
+      <textarea class="cdesc" placeholder='Visual lock — "3D cartoon girl, 122cm, auburn hair…, teal eyes, sky-blue vest, denim shorts, glowing compass"'></textarea>`;
+    row.querySelector(".cname").value = c.name || "";
+    row.querySelector(".cdesc").value = c.desc || "";
+    row.querySelector(".cname").addEventListener("input", e => { c.name = e.target.value; render(); });
+    row.querySelector(".cdesc").addEventListener("input", e => { c.desc = e.target.value; render(); });
+    row.querySelector(".x").addEventListener("click", () => {
+      state.characters.splice(i, 1);
+      if (state.characters.length === 0) state.characters.push({ name: "", desc: "" });
+      renderChars(); render();
+    });
+    list.appendChild(row);
+  });
+}
+
+/* ---------------- persistence ---------------- */
+function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch (e) {} }
+function load() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    Object.assign(state, JSON.parse(raw));
+    return true;
+  } catch (e) { return false; }
+}
+
+/* ---------------- wire up ---------------- */
+function syncInputsFromState() {
+  $("title").value = state.title;
+  $("genre").value = state.genre;
+  $("moral").value = state.moral;
+  $("goal").value = state.goal;
+  $("structure").value = state.structure;
+  $("sceneMin").value = state.sceneMin;
+  $("sceneMax").value = state.sceneMax;
+  $("dlgMin").value = state.dlgMin;
+  $("dlgMax").value = state.dlgMax;
+  $("runtime").value = state.runtime;
+  $("aspect").value = state.aspect;
+  $("audience").value = state.audience;
+  $("style").value = state.style;
+}
+
+function init() {
+  // structure dropdown
+  const sel = $("structure");
+  STRUCTURES.forEach(s => {
+    const o = document.createElement("option");
+    o.value = s.id; o.textContent = s.name; sel.appendChild(o);
+  });
+
+  if (!load()) {
+    state.characters = [{ name: "", desc: "" }];
+  }
+  if (!state.characters || state.characters.length === 0) state.characters = [{ name: "", desc: "" }];
+
+  syncInputsFromState();
+  renderChars();
+  render();
+
+  // text/select bindings
+  const bind = (id, key, num) => $(id).addEventListener("input", e => {
+    state[key] = num ? (parseInt(e.target.value, 10) || 0) : e.target.value;
+    render();
+  });
+  bind("title", "title"); bind("genre", "genre"); bind("moral", "moral"); bind("goal", "goal");
+  bind("structure", "structure"); bind("aspect", "aspect"); bind("audience", "audience"); bind("style", "style");
+  bind("sceneMin", "sceneMin", true); bind("sceneMax", "sceneMax", true);
+  bind("dlgMin", "dlgMin", true); bind("dlgMax", "dlgMax", true);
+  bind("runtime", "runtime", true);
+
+  $("addChar").addEventListener("click", () => {
+    state.characters.push({ name: "", desc: "" });
+    renderChars(); render();
+  });
+
+  $("randomize").addEventListener("click", () => {
+    const r = randomStory();
+    state.title = r.title;
+    state.genre = r.genre;
+    state.moral = r.moral;
+    state.goal = r.goal;
+    state.characters = r.characters.map(c => ({ ...c }));
+    state.structure = r.structure;
+    syncInputsFromState(); renderChars(); render();
+  });
+
+  $("loadExample").addEventListener("click", () => {
+    state.title = EXAMPLE.title;
+    state.genre = EXAMPLE.genre;
+    state.moral = EXAMPLE.moral;
+    state.goal = EXAMPLE.goal;
+    state.characters = EXAMPLE.characters.map(c => ({ ...c }));
+    if (state.structure === "master") state.structure = "classic";
+    syncInputsFromState(); renderChars(); render();
+  });
+
+  $("clearAll").addEventListener("click", () => {
+    state.title = ""; state.moral = ""; state.goal = "";
+    state.characters = [{ name: "", desc: "" }];
+    syncInputsFromState(); renderChars(); render();
+  });
+
+  $("copy").addEventListener("click", async () => {
+    const text = $("output").classList.contains("placeholder") ? "" : $("output").textContent;
+    if (!text) return;
+    try { await navigator.clipboard.writeText(text); }
+    catch (e) {
+      const r = document.createRange(); r.selectNode($("output"));
+      const sgl = getSelection(); sgl.removeAllRanges(); sgl.addRange(r);
+      document.execCommand("copy"); sgl.removeAllRanges();
+    }
+    const btn = $("copy"); const old = btn.textContent;
+    btn.textContent = "Copied ✓"; btn.classList.add("copied");
+    setTimeout(() => { btn.textContent = old; btn.classList.remove("copied"); }, 1400);
+  });
+
+  $("download").addEventListener("click", () => {
+    if ($("output").classList.contains("placeholder")) return;
+    const safe = (state.title || "story-prompt").replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "_") || "story-prompt";
+    const blob = new Blob([$("output").textContent], { type: "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${safe}.txt`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+}
+
+init();
+</script>
+</body>
+</html>
